@@ -1,5 +1,45 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Auth + Database Setup
+
+This project uses:
+
+- `next-auth` (Credentials + optional OAuth providers)
+- Neon PostgreSQL (`@neondatabase/serverless`)
+
+### 1. Configure environment variables
+
+Copy `.env.example` to `.env.local` and set values:
+
+```bash
+cp .env.example .env.local
+```
+
+Required variables:
+
+- `DATABASE_URL`
+- `NEXTAUTH_SECRET` (or `AUTH_SECRET`)
+- `NEXTAUTH_URL`
+
+Optional OAuth variables (enable Google login button):
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
+### 2. Start the app
+
+```bash
+npm run dev
+```
+
+Routes:
+
+- `/login`
+- `/signup`
+- `/dashboard` (protected)
+
+Note: the `app_users` table is created automatically on first auth request.
+
 ## Getting Started
 
 First, run the development server:
