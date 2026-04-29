@@ -1,8 +1,17 @@
+import { redirect } from "next/navigation"
+import { getServerSession } from "next-auth"
 import Link from "next/link"
 
+import { authOptions } from "@/auth"
 import { AuthShowcase } from "@/components/auth/auth-showcase"
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession(authOptions)
+
+  if (session?.user) {
+    redirect("/dashboard")
+  }
+
   return (
     <div className="landing-atmosphere relative min-h-screen overflow-x-clip px-3 py-4 sm:px-6 sm:py-6 lg:px-10 lg:py-8">
       <div className="pointer-events-none absolute -left-24 top-24 h-64 w-64 rounded-full bg-[rgba(168,90,45,0.12)] blur-3xl" />

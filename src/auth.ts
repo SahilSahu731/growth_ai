@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 
 import { getGoogleOAuthConfig } from "@/lib/oauth-config"
-import { findUserByEmail } from "@/lib/db"
+import { findUserByEmail, upsertOAuthUser } from "@/lib/db"
 import { verifyPassword } from "@/lib/password"
 
 const providers: NonNullable<NextAuthOptions["providers"]> = []
@@ -35,6 +35,8 @@ providers.push(
 
       if (!user) return null
 
+      if (!user.passwordHash) return null
+
       const isValidPassword = await verifyPassword(password, user.passwordHash)
 
       if (!isValidPassword) return null
@@ -56,9 +58,33 @@ export const authOptions: NextAuthOptions = {
   },
   providers,
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google" && user.email) {
+        try {
+          await upsertOAuthUser({
+            email: user.email,
+            name: user.name,
+            provider: "google",
+          })
+        } catch (error) {
+          console.error("Failed to persist OAuth user", error)
+          return false
+        }
+      }
+
+      return true
+    },
     async jwt({ token, user }) {
-      if (user) {
-        token.userId = user.id
+      if (user?.email) {
+        const appUser = await findUserByEmail(user.email)
+
+        token.userId = appUser?.id ?? user.id
+      } else if (!token.userId && typeof token.email === "string") {
+        const appUser = await findUserByEmail(token.email)
+
+        if (appUser) {
+          token.userId = appUser.id
+        }
       }
 
       return token

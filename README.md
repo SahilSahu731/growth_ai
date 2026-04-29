@@ -26,6 +26,11 @@ Optional OAuth variables (enable Google login button):
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 
+Optional AI variables (required if you want AI-assisted goal creation):
+
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` (defaults to `gemini-2.0-flash`)
+
 ### 2. Start the app
 
 ```bash
@@ -37,6 +42,8 @@ Routes:
 - `/login`
 - `/signup`
 - `/dashboard` (protected)
+- `/goals` (protected)
+- `/goals/[goalId]` (protected)
 
 Note: the `app_users` table is created automatically on first auth request.
 

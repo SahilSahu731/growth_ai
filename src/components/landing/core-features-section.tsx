@@ -8,28 +8,28 @@ const coreFeatures: ReadonlyArray<{
 }> = [
   {
     id: "01",
-    title: "Goal to System Converter",
-    summary: "Turn one ambition into a day-by-day plan with realistic weekly milestones.",
+    title: "Developer Roadmap Engine",
+    summary: "Turn project, skill, interview, and work goals into phased engineering sprints.",
   },
   {
     id: "02",
-    title: "Daily Accountability AI",
-    summary: "Track completion each day and automatically adapt when momentum drops.",
+    title: "Coding Session Evidence",
+    summary: "Log focused work, shipped outcomes, blockers, energy, and focus quality.",
   },
   {
     id: "03",
-    title: "Progress Dashboard",
-    summary: "Visualize streaks, skill growth, and time invested at a glance.",
+    title: "Skill Graph",
+    summary: "Track current level, target level, confidence, and proof-of-work signals.",
   },
   {
     id: "04",
-    title: "Anti-Procrastination Mode",
-    summary: "Launch instant focus sessions and immediate next actions when distracted.",
+    title: "Proof-of-Work Projects",
+    summary: "Manage repo-ready projects, stack decisions, live links, and portfolio readiness.",
   },
   {
     id: "05",
-    title: "Learning Navigator",
-    summary: "Get a curated path with resources and projects in the right sequence.",
+    title: "AI Weekly Reviews",
+    summary: "Get a senior-dev style review of what shipped, what blocked you, and what to do next.",
   },
 ]
 
@@ -43,13 +43,13 @@ export function CoreFeaturesSection() {
               Core Features
             </Badge>
             <h2 className="mt-6 font-display text-3xl leading-tight text-(--landing-ink) sm:text-4xl lg:text-[2.8rem]">
-              Not a chat wrapper. A system engine for execution.
+              Not another todo app. A developer cockpit for visible progress.
             </h2>
           </div>
           <Card className="max-w-[20rem] rounded-xl border border-black/10 bg-white/70 p-4">
             <p className="text-[0.68rem] uppercase tracking-[0.15em] text-(--landing-muted)">Unique Angle</p>
             <p className="mt-2 text-sm leading-6 text-(--landing-ink)">
-              ChatGPT answers questions. Growth_AI builds and runs life systems.
+              Growth_AI connects goals, projects, sessions, skills, and weekly reviews into one developer operating loop.
             </p>
           </Card>
         </div>

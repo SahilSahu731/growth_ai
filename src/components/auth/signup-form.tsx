@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { useActionState } from "react"
+import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 
 import { signupAction, type AuthActionState } from "@/app/(auth)/actions"
 import { OAuthButtons, type OAuthProviderAvailability } from "@/components/auth/oauth-buttons"
@@ -16,7 +18,40 @@ type SignupFormProps = {
 }
 
 export function SignupForm({ oauthProviders }: SignupFormProps) {
-  const [state, formAction, isPending] = useActionState(signupAction, INITIAL_STATE)
+  const router = useRouter()
+
+  const [state, formAction, isPending] = useActionState(
+    async (prevState: AuthActionState, formData: FormData) => {
+      const email = formData.get("email")?.toString().trim().toLowerCase() ?? ""
+      const password = formData.get("password")?.toString() ?? ""
+
+      const result = await signupAction(prevState, formData)
+
+      if (!result.success) {
+        return result
+      }
+
+      const signInResult = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: "/dashboard",
+      })
+
+      if (signInResult?.error) {
+        return {
+          error: "Account created but sign in failed. Please sign in manually.",
+          success: result.success,
+          email: result.email,
+        }
+      }
+
+      router.push(signInResult?.url ?? "/dashboard")
+      router.refresh()
+      return result
+    },
+    INITIAL_STATE
+  )
 
   return (
     <form action={formAction} className="space-y-5 sm:space-y-6">

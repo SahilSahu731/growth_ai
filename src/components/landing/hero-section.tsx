@@ -20,9 +20,9 @@ type DailyTask = {
 }
 
 const dailyTasks: ReadonlyArray<DailyTask> = [
-  { title: "Python fundamentals", time: "2h", complete: true },
-  { title: "Mini project sprint", time: "45m", complete: true },
-  { title: "Daily check-in", time: "5m", complete: false },
+  { title: "Ship auth callback fix", time: "75m", complete: true },
+  { title: "System design drill", time: "45m", complete: true },
+  { title: "Weekly dev review", time: "10m", complete: false },
 ]
 
 const skillMeters: ReadonlyArray<{ label: string; value: number }> = [
@@ -42,11 +42,11 @@ export function HeroSection() {
             Growth_AI
           </Badge>
           <h1 className="mt-7 max-w-3xl font-display text-4xl leading-[1.02] tracking-tight text-(--landing-ink) sm:text-5xl lg:text-[4rem]">
-            Turn ambitious goals into a daily system that actually gets done.
+            The AI growth cockpit for developers who want proof they are getting better.
           </h1>
           <p className="mt-7 max-w-152 text-[1.02rem] leading-8 text-(--landing-muted)">
-            Growth_AI translates one goal into clear daily actions, tracks completion, and adapts your
-            plan when consistency breaks.
+            Growth_AI turns skill goals, project ideas, and interview prep into weekly coding sprints,
+            tracked sessions, portfolio projects, and AI reviews.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Button
@@ -54,7 +54,7 @@ export function HeroSection() {
               size="lg"
               className="h-10 rounded-full bg-(--landing-ink) px-6 text-xs text-(--landing-surface) hover:bg-(--landing-accent)"
             >
-              <Link href="#cta">Build My Growth Plan</Link>
+              <Link href="#cta">Build My Dev System</Link>
             </Button>
             <Button
               asChild
@@ -66,7 +66,7 @@ export function HeroSection() {
             </Button>
           </div>
           <p className="mt-8 text-sm text-(--landing-muted)">
-            Goals are easy. Systems are hard. We build them.
+            For solo builders, job seekers, and working developers.
           </p>
         </div>
 
@@ -121,8 +121,8 @@ export function HeroSection() {
               </div>
 
               <div className="rounded-xl border border-(--landing-accent)/20 bg-(--landing-accent-soft) p-3.5 text-sm leading-6 text-(--landing-ink)">
-                You missed one task yesterday. Growth_AI shifted your deep work block to your highest
-                completion window.
+                Your review found a blocker pattern: too much planning, not enough shipped evidence.
+                Next sprint is now project-first.
               </div>
             </CardContent>
           </Card>

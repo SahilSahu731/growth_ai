@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Growth_AI - Turn Your Goals Into Systems",
+  title: "PickAI - Compare Anything",
   description:
-    "Growth_AI turns goals into daily systems with adaptive accountability so people stay consistent and progress faster.",
+    "PickAI compares anything with weighted scoring, hidden costs, risks, live research, questions to ask, and a final recommendation.",
 };
 
 export default function RootLayout({

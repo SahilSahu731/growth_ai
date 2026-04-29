@@ -6,6 +6,7 @@ import { hashPassword } from "@/lib/password"
 export type AuthActionState = {
   error?: string
   success?: string
+  email?: string
 }
 
 function parseText(value: FormDataEntryValue | null): string {
@@ -33,20 +34,38 @@ export async function signupAction(
     return { error: "Passwords do not match." }
   }
 
-  const existingUser = await findUserByEmail(email)
+  try {
+    const existingUser = await findUserByEmail(email)
 
-  if (existingUser) {
-    return { error: "An account with this email already exists." }
+    if (existingUser) {
+      return { error: "An account with this email already exists." }
+    }
+
+    const passwordHash = await hashPassword(password)
+
+    await createUser({
+      id: crypto.randomUUID(),
+      name,
+      email,
+      passwordHash,
+    })
+
+    return {
+      success: "Account created successfully.",
+      email,
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+
+    if (errorMessage.includes("DATABASE_URL")) {
+      return {
+        error: "Database is not configured. Please set a valid DATABASE_URL in your .env file.",
+      }
+    }
+
+    console.error("Signup failed", error)
+    return {
+      error: "Unable to create account right now. Please try again.",
+    }
   }
-
-  const passwordHash = await hashPassword(password)
-
-  await createUser({
-    id: crypto.randomUUID(),
-    name,
-    email,
-    passwordHash,
-  })
-
-  return { success: "Account created successfully. You can sign in now." }
 }

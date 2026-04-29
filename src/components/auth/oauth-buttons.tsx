@@ -4,11 +4,10 @@ import { useState, type ComponentProps, type ReactElement } from "react"
 import { signIn } from "next-auth/react"
 
 import { Button } from "@/components/ui/button"
+import type { OAuthProviderAvailability } from "@/lib/oauth-config"
 import { cn } from "@/lib/utils"
 
-export type OAuthProviderAvailability = {
-  google: boolean
-}
+export type { OAuthProviderAvailability } from "@/lib/oauth-config"
 
 type OAuthProviderId = keyof OAuthProviderAvailability
 

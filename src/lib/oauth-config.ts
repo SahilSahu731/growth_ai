@@ -1,4 +1,6 @@
-import type { OAuthProviderAvailability } from "@/components/auth/oauth-buttons"
+export type OAuthProviderAvailability = {
+  google: boolean
+}
 
 export function getGoogleOAuthConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID ?? process.env.GOOGLE_ID
