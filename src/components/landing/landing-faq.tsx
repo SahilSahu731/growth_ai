@@ -79,7 +79,7 @@ export function LandingFAQ() {
 
       {/* Still have questions? CTA */}
       <div className="mt-12 text-center">
-        <p className="text-zinc-400 mb-4">Can't find what you're looking for?</p>
+        <p className="text-zinc-400 mb-4">Can&apos;t find what you&apos;re looking for?</p>
         <a href="mailto:support@pickai.app" className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors font-medium">
           Contact our support →
         </a>

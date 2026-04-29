@@ -2165,6 +2165,21 @@ export async function createComparison(input: {
   return mapComparisonRow(rows[0])
 }
 
+export async function getComparison(comparisonId: string): Promise<Comparison | null> {
+  await ensureComparisonSchema()
+
+  const sql = getSqlClient()
+  const rows = (await sql`
+    SELECT id, user_id, title, category, status, context, final_recommendation, usage_mode, created_at, updated_at
+    FROM comparisons
+    WHERE id = ${comparisonId}
+    LIMIT 1;
+  `) as ComparisonRow[]
+
+  if (!rows[0]) return null
+  return mapComparisonRow(rows[0])
+}
+
 export async function listComparisonsByUserId(userId: string): Promise<Comparison[]> {
   await ensureComparisonSchema()
 
@@ -2530,181 +2545,83 @@ export async function upsertOAuthUser(input: {
     updatedAt: user.updated_at,
   }
 }
-  if (isComparisonSchemaReady) return
 
-  await ensureAuthSchema()
+// ============================================
+// RESEARCH SOURCES
+// ============================================
+
+export async function addResearchSource(input: {
+  comparisonId: string
+  url: string
+  title: string
+  snippet: string
+  confidence?: number
+  claimSupported?: string
+}): Promise<ComparisonSource | null> {
+  await ensureComparisonSchema()
 
   const sql = getSqlClient()
 
-  // Main comparisons table
-  await sql`
-    CREATE TABLE IF NOT EXISTS comparisons (
-      id TEXT PRIMARY KEY,
-      user_id TEXT REFERENCES app_users(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      category TEXT NOT NULL DEFAULT 'custom',
-      status TEXT NOT NULL DEFAULT 'draft',
-      context TEXT NOT NULL DEFAULT '',
-      final_recommendation TEXT NOT NULL DEFAULT '',
-      usage_mode TEXT NOT NULL DEFAULT 'guest',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT comparisons_status_valid CHECK (status IN ('draft', 'needs_info', 'ready', 'decided', 'archived')),
-      CONSTRAINT comparisons_category_valid CHECK (category IN ('product', 'finance', 'housing', 'career', 'education', 'software', 'travel', 'healthcare', 'services', 'custom')),
-      CONSTRAINT comparisons_usage_mode_valid CHECK (usage_mode IN ('guest', 'free', 'pro'))
-    );
-  `
+  const rows = (await sql`
+    INSERT INTO comparison_sources (id, comparison_id, url, title, snippet, confidence, claim_supported, fetched_at)
+    VALUES (${crypto.randomUUID()}, ${input.comparisonId}, ${input.url}, ${input.title}, ${input.snippet}, ${input.confidence ?? 0.7}, ${input.claimSupported ?? ""}, NOW())
+    RETURNING id, comparison_id, url, title, snippet, fetched_at, confidence, claim_supported;
+  `) as Array<{
+    id: string
+    comparison_id: string
+    url: string
+    title: string
+    snippet: string
+    fetched_at: string
+    confidence: number
+    claim_supported: string
+  }>
 
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_comparisons_user_id
-    ON comparisons (user_id);
-  `
+  if (rows.length === 0) return null
 
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_comparisons_created_at
-    ON comparisons (created_at DESC);
-  `
+  const row = rows[0]
 
-  // Comparison options
-  await sql`
-    CREATE TABLE IF NOT EXISTS comparison_options (
-      id TEXT PRIMARY KEY,
-      comparison_id TEXT NOT NULL REFERENCES comparisons(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      price TEXT NOT NULL DEFAULT '',
-      source_url TEXT NOT NULL DEFAULT '',
-      notes TEXT NOT NULL DEFAULT '',
-      total_score NUMERIC(5, 2) NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `
+  return {
+    id: row.id,
+    comparisonId: row.comparison_id,
+    url: row.url,
+    title: row.title,
+    snippet: row.snippet,
+    fetchedAt: row.fetched_at,
+    confidence: row.confidence,
+    claimSupported: row.claim_supported,
+  }
+}
 
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_comparison_options_comparison_id
-    ON comparison_options (comparison_id);
-  `
+export async function getResearchSources(comparisonId: string): Promise<ComparisonSource[]> {
+  await ensureComparisonSchema()
 
-  // Comparison criteria
-  await sql`
-    CREATE TABLE IF NOT EXISTS comparison_criteria (
-      id TEXT PRIMARY KEY,
-      comparison_id TEXT NOT NULL REFERENCES comparisons(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      weight NUMERIC(5, 2) NOT NULL DEFAULT 0,
-      category_relevance TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `
+  const sql = getSqlClient()
 
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_comparison_criteria_comparison_id
-    ON comparison_criteria (comparison_id);
-  `
+  const rows = (await sql`
+    SELECT id, comparison_id, url, title, snippet, fetched_at, confidence, claim_supported
+    FROM comparison_sources
+    WHERE comparison_id = ${comparisonId}
+    ORDER BY fetched_at DESC;
+  `) as Array<{
+    id: string
+    comparison_id: string
+    url: string
+    title: string
+    snippet: string
+    fetched_at: string
+    confidence: number
+    claim_supported: string
+  }>
 
-  // Option scores
-  await sql`
-    CREATE TABLE IF NOT EXISTS option_scores (
-      id TEXT PRIMARY KEY,
-      option_id TEXT NOT NULL REFERENCES comparison_options(id) ON DELETE CASCADE,
-      criterion_id TEXT NOT NULL REFERENCES comparison_criteria(id) ON DELETE CASCADE,
-      score NUMERIC(3, 1) NOT NULL DEFAULT 0,
-      reason TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT option_scores_score_range CHECK (score >= 0 AND score <= 10),
-      UNIQUE (option_id, criterion_id)
-    );
-  `
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_option_scores_option_id
-    ON option_scores (option_id);
-  `
-
-  // Comparison insights (hidden costs, risks, questions, negotiation, recommendation)
-  await sql`
-    CREATE TABLE IF NOT EXISTS comparison_insights (
-      id TEXT PRIMARY KEY,
-      comparison_id TEXT NOT NULL REFERENCES comparisons(id) ON DELETE CASCADE,
-      option_id TEXT REFERENCES comparison_options(id) ON DELETE CASCADE,
-      insight_type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      severity TEXT NOT NULL DEFAULT 'medium',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT comparison_insights_type_valid CHECK (insight_type IN ('hidden_cost', 'risk', 'question', 'negotiation', 'recommendation', 'missing_info')),
-      CONSTRAINT comparison_insights_severity_valid CHECK (severity IN ('low', 'medium', 'high'))
-    );
-  `
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_comparison_insights_comparison_id
-    ON comparison_insights (comparison_id);
-  `
-
-  // Evidence (uploaded files)
-  await sql`
-    CREATE TABLE IF NOT EXISTS comparison_evidence (
-      id TEXT PRIMARY KEY,
-      comparison_id TEXT NOT NULL REFERENCES comparisons(id) ON DELETE CASCADE,
-      file_name TEXT NOT NULL,
-      file_type TEXT NOT NULL,
-      file_url TEXT NOT NULL,
-      file_key TEXT NOT NULL,
-      extracted_text TEXT NOT NULL DEFAULT '',
-      evidence_summary TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT comparison_evidence_type_valid CHECK (file_type IN ('text', 'url', 'pdf', 'image', 'document'))
-    );
-  `
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_comparison_evidence_comparison_id
-    ON comparison_evidence (comparison_id);
-  `
-
-  // Sources (web research)
-  await sql`
-    CREATE TABLE IF NOT EXISTS comparison_sources (
-      id TEXT PRIMARY KEY,
-      comparison_id TEXT NOT NULL REFERENCES comparisons(id) ON DELETE CASCADE,
-      url TEXT NOT NULL,
-      title TEXT NOT NULL DEFAULT '',
-      snippet TEXT NOT NULL DEFAULT '',
-      fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      confidence NUMERIC(3, 2) NOT NULL DEFAULT 0.5,
-      claim_supported TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_comparison_sources_comparison_id
-    ON comparison_sources (comparison_id);
-  `
-
-  // Usage counters
-  await sql`
-    CREATE TABLE IF NOT EXISTS usage_counters (
-      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
-      usage_month TEXT NOT NULL,
-      plan_tier TEXT NOT NULL DEFAULT 'free',
-      comparisons_used INTEGER NOT NULL DEFAULT 0,
-      uploads_used INTEGER NOT NULL DEFAULT 0,
-      research_calls_used INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (user_id, usage_month),
-      CONSTRAINT usage_counters_plan_valid CHECK (plan_tier IN ('guest', 'free', 'pro'))
-    );
-  `
-
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_usage_counters_user_id
-    ON usage_counters (user_id);
-  `
-
-  isComparisonSchemaReady = true
+  return rows.map((row) => ({
+    id: row.id,
+    comparisonId: row.comparison_id,
+    url: row.url,
+    title: row.title,
+    snippet: row.snippet,
+    fetchedAt: row.fetched_at,
+    confidence: row.confidence,
+    claimSupported: row.claim_supported,
+  }))
 }

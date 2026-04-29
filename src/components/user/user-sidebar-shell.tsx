@@ -6,11 +6,9 @@ import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  AiBrain02Icon,
   ComputerSettingsIcon,
   DashboardSquare01Icon,
   File01Icon,
-  PlusSignIcon,
 } from "@hugeicons/core-free-icons"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -39,13 +37,10 @@ type UserSidebarShellProps = {
 }
 
 const NAV_ITEMS = [
-  { href: "/compare/new", label: "New comparison", icon: PlusSignIcon },
   { href: "/dashboard", label: "Saved comparisons", icon: DashboardSquare01Icon },
   { href: "/reports", label: "Reports", icon: File01Icon },
   { href: "/settings", label: "Settings", icon: ComputerSettingsIcon },
 ] as const
-
-const EXAMPLES = ["Apartments", "Job offers", "Phones", "Insurance", "Loans", "Courses", "Travel plans"]
 
 function getInitials(value: string): string {
   const words = value.trim().split(/\s+/).filter(Boolean)
@@ -61,8 +56,6 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 function currentTitle(pathname: string): string {
-  if (pathname.startsWith("/compare/new")) return "New comparison"
-  if (pathname.startsWith("/compare/")) return "Decision workspace"
   if (pathname.startsWith("/reports")) return "Decision report"
   if (pathname.startsWith("/settings")) return "Settings"
   return "Saved comparisons"
@@ -108,11 +101,10 @@ export function UserSidebarShell({ children, user }: UserSidebarShellProps) {
             </div>
 
             <Link
-              href="/compare/new"
-              className="flex h-10 items-center gap-2 rounded-lg bg-zinc-800 px-3 text-sm font-medium text-white transition hover:bg-zinc-700 group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+              href="/dashboard"
+              className="flex h-10 items-center rounded-lg bg-zinc-800 px-3 text-sm font-medium text-white transition hover:bg-zinc-700 group-data-[collapsible=icon]:hidden"
             >
-              <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
-              <span className="truncate group-data-[collapsible=icon]:hidden">Compare anything</span>
+              View saved decisions
             </Link>
           </SidebarHeader>
 
@@ -134,27 +126,11 @@ export function UserSidebarShell({ children, user }: UserSidebarShellProps) {
               ))}
             </SidebarGroup>
 
-            <SidebarGroup className="space-y-1 border-t border-zinc-800 px-0 py-3 group-data-[collapsible=icon]:hidden">
-              <p className="px-2 pb-1 text-xs text-zinc-500">Try comparing</p>
-              {EXAMPLES.map((item) => (
-                <Link
-                  key={item}
-                  href={`/compare/new?example=${encodeURIComponent(item)}`}
-                  className="block truncate rounded-lg px-2 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
-                >
-                  {item}
-                </Link>
-              ))}
-            </SidebarGroup>
           </SidebarContent>
 
           <SidebarFooter className="border-t border-zinc-800 p-2">
             <div className="rounded-lg border border-zinc-800 p-2 group-data-[collapsible=icon]:hidden">
-              <div className="mb-2 flex items-center gap-2 text-xs text-zinc-400">
-                <HugeiconsIcon icon={AiBrain02Icon} className="size-4" />
-                Free plan
-              </div>
-              <p className="text-xs leading-5 text-zinc-500">3 saved comparisons/month. Pro limits are prepared for later.</p>
+              <p className="text-xs leading-5 text-zinc-500">Comparison work now lives in its own research flow outside this dashboard shell.</p>
             </div>
 
             <Link

@@ -1,11 +1,14 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import type {
   ComparisonCategory,
-  ComparisonCriterion,
-  ComparisonOption,
-  OptionScore,
   RiskSeverity,
 } from "@/lib/db"
+
+type GeneratedCriterion = {
+  name: string
+  description: string
+  categoryRelevance: string
+}
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
 const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.0-flash" })
@@ -114,17 +117,20 @@ Return ONLY valid JSON, no other text.
     const json = JSON.parse(cleanText)
 
     return (
-      json.criteria?.map((c: any) => ({
-        name: c.name || "Unknown",
-        description: c.description || "",
-        categoryRelevance: c.categoryRelevance || "",
-      })) || []
+      json.criteria?.map((c: unknown) => {
+        const criterion = typeof c === "object" && c !== null ? (c as Partial<GeneratedCriterion>) : {}
+        return {
+          name: criterion.name || "Unknown",
+          description: criterion.description || "",
+          categoryRelevance: criterion.categoryRelevance || "",
+        }
+      }) || []
     )
   } catch (error) {
     console.error("Error generating criteria:", error)
 
     // Fallback criteria based on category
-    const fallbackCriteria: { [key in ComparisonCategory]: any[] } = {
+    const fallbackCriteria: Record<ComparisonCategory, GeneratedCriterion[]> = {
       product: [
         { name: "Price", description: "Purchase price or monthly cost", categoryRelevance: "Core" },
         { name: "Performance", description: "Speed, power, or effectiveness", categoryRelevance: "Core" },

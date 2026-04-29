@@ -18,7 +18,7 @@ function scoreFor(optionId: string, criterionId: string, scores: OptionScore[]) 
   return scores.find((score) => score.optionId === optionId && score.criterionId === criterionId)
 }
 
-export default async function ComparisonWorkspacePage({ params }: PageProps) {
+export default async function CompareWorkspacePage({ params }: PageProps) {
   const { comparisonId } = await params
   const session = await getServerSession(authOptions)
   const email = session?.user?.email?.trim().toLowerCase()
@@ -36,7 +36,7 @@ export default async function ComparisonWorkspacePage({ params }: PageProps) {
   const negotiations = report.insights.filter((item) => item.insightType === "negotiation")
 
   return (
-    <div className="mx-auto grid w-full max-w-[1500px] gap-4 xl:grid-cols-[21rem_1fr_23rem]">
+    <div className="mx-auto grid w-full max-w-[1500px] gap-4 px-4 py-6 sm:px-6 xl:grid-cols-[21rem_1fr_23rem]">
       <aside className="space-y-4">
         <Card className="rounded-2xl border-white/10 bg-[#2f2f2f]">
           <CardHeader>
@@ -71,11 +71,11 @@ export default async function ComparisonWorkspacePage({ params }: PageProps) {
               <form action={runAnalysisAction}>
                 <input type="hidden" name="comparisonId" value={comparisonId} />
                 <Button type="submit" className="rounded-full bg-white text-zinc-950 hover:bg-zinc-200">
-                  Analyze
+                  Re-run research
                 </Button>
               </form>
               <Button asChild variant="outline" className="rounded-full border-white/10 bg-[#303030] text-white hover:bg-zinc-700">
-                <Link href={`/reports/${comparisonId}`}>Report</Link>
+                <Link href={`/reports/${comparisonId}`}>Open report</Link>
               </Button>
             </div>
           </div>
@@ -90,7 +90,7 @@ export default async function ComparisonWorkspacePage({ params }: PageProps) {
             {report.options.length === 0 ? (
               <p className="text-sm text-zinc-400">Add at least two options to generate a useful comparison.</p>
             ) : report.criteria.length === 0 ? (
-              <p className="text-sm text-zinc-400">Click Analyze to generate criteria, scores, hidden costs, risks, questions, and a recommendation.</p>
+              <p className="text-sm text-zinc-400">Deep research is running. Use Re-run research after adding more evidence.</p>
             ) : (
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
@@ -132,25 +132,21 @@ export default async function ComparisonWorkspacePage({ params }: PageProps) {
 
         <Card className="rounded-2xl border-white/10 bg-[#2f2f2f]">
           <CardHeader>
-            <CardDescription>Sources</CardDescription>
-            <CardTitle className="text-2xl text-white">Live research and evidence</CardTitle>
+            <CardDescription>Deep research</CardDescription>
+            <CardTitle className="text-2xl text-white">Sources and evidence</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
-            {[...report.sources, ...report.evidence.map((item) => ({
-              id: item.id,
-              title: item.fileName,
-              url: item.fileUrl,
-              snippet: item.evidenceSummary || item.extractedText,
-              confidence: 60,
-            }))].length === 0 ? (
-              <p className="text-sm text-zinc-400">Research sources and uploads will appear here.</p>
+            {report.sources.length === 0 && report.evidence.length === 0 ? (
+              <p className="text-sm text-zinc-400">Research sources and uploaded evidence will appear here after analysis.</p>
             ) : (
               <>
                 {report.sources.map((source) => (
                   <a key={source.id} href={source.url} target="_blank" rel="noreferrer" className="rounded-xl border border-white/10 bg-[#303030] p-3 hover:bg-[#363636]">
                     <p className="line-clamp-1 text-sm font-medium text-white">{source.title}</p>
                     <p className="mt-1 line-clamp-3 text-xs leading-5 text-zinc-400">{source.snippet}</p>
-                    <p className="mt-2 text-xs text-zinc-500">{source.confidence}% confidence</p>
+                    <p className="mt-2 text-xs text-zinc-500">
+                      {new Date(source.fetchedAt).toLocaleDateString()} / {source.confidence}% confidence
+                    </p>
                   </a>
                 ))}
                 {report.evidence.map((item) => (
@@ -169,10 +165,12 @@ export default async function ComparisonWorkspacePage({ params }: PageProps) {
         <Card className="rounded-2xl border-white/10 bg-[#2f2f2f]">
           <CardHeader>
             <CardDescription>Recommendation</CardDescription>
-            <CardTitle className="text-xl text-white">Best for you</CardTitle>
+            <CardTitle className="text-xl text-white">Best fit</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm leading-6 text-zinc-300">{report.comparison.finalRecommendation || "Run analysis after adding options. PickAI will recommend the best choice for your situation."}</p>
+            <p className="text-sm leading-6 text-zinc-300">
+              {report.comparison.finalRecommendation || "Deep research needs more detail before recommending a winner."}
+            </p>
           </CardContent>
         </Card>
 
@@ -180,7 +178,7 @@ export default async function ComparisonWorkspacePage({ params }: PageProps) {
           ["Hidden costs", hiddenCosts],
           ["Risks", risks],
           ["Questions to ask", questions],
-          ["Negotiation", negotiations],
+          ["Negotiation points", negotiations],
         ].map(([title, items]) => (
           <Card key={title as string} className="rounded-2xl border-white/10 bg-[#2f2f2f]">
             <CardHeader className="pb-3">
@@ -188,7 +186,7 @@ export default async function ComparisonWorkspacePage({ params }: PageProps) {
             </CardHeader>
             <CardContent className="space-y-2">
               {(items as typeof report.insights).length === 0 ? (
-                <p className="text-sm text-zinc-500">None yet.</p>
+                <p className="text-sm text-zinc-500">No findings yet.</p>
               ) : (
                 (items as typeof report.insights).slice(0, 5).map((item) => (
                   <div key={item.id} className="rounded-xl bg-[#303030] p-3">

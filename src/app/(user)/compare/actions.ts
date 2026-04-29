@@ -70,6 +70,14 @@ export async function createComparisonAction(formData: FormData): Promise<void> 
     redirect("/signup")
   }
 
+  // Check usage limits
+  const { checkComparisonUsage } = await import("@/lib/usage-gates")
+  const usage = await checkComparisonUsage()
+  
+  if (!usage.allowed) {
+    redirect(`/compare/new?error=Comparison limit reached (${usage.tier} tier). Upgrade or wait for next month.`)
+  }
+
   const context = text(formData.get("context"))
   const categoryRaw = text(formData.get("category"))
   const category = CATEGORIES.has(categoryRaw as ComparisonCategory)
@@ -86,10 +94,11 @@ export async function createComparisonAction(formData: FormData): Promise<void> 
     title,
     category,
     context,
-    usageMode: "free",
+    usageMode: (usage.tier === "enterprise" ? "pro" : usage.tier) as "guest" | "free" | "pro",
   })
 
-  await incrementUsageCounter({ userId: user.id, comparisons: 1 })
+  const { incrementComparisonUsage } = await import("@/lib/usage-gates")
+  await incrementComparisonUsage()
 
   redirect(`/compare/${comparison.id}`)
 }
