@@ -1,24 +1,28 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { LoginForm } from "@/components/auth/login-form"
+import Link from "next/link"
+import { LockKeyhole } from "lucide-react"
+
+import { GoogleAuthButton } from "@/components/auth/google-auth-button"
 import { getOAuthProviderAvailability } from "@/lib/oauth-config"
 
 export const dynamic = "force-dynamic"
 
 export default function LoginPage() {
-  const oauthProviders = getOAuthProviderAvailability()
+  const { google } = getOAuthProviderAvailability()
 
   return (
-    <Card className="auth-card animate-reveal overflow-hidden rounded-[2rem] border border-white/10 bg-white/92 shadow-[0_32px_90px_rgba(0,0,0,.35)]">
-      <CardHeader className="gap-3 px-6 pt-8 sm:px-10 sm:pt-10">
-        <p className="flex items-center gap-2 text-[0.64rem] font-bold uppercase tracking-[0.2em] text-amber-200/70"><span className="h-px w-7 bg-amber-200/50" />Welcome home</p>
-        <CardTitle className="text-5xl font-black leading-[.96] tracking-[-.055em] text-(--landing-ink) sm:text-6xl">Continue<br /><span className="font-editorial font-normal italic text-neutral-400">becoming.</span></CardTitle>
-        <CardDescription className="text-sm leading-7 text-(--landing-muted)">
-          Return to your intentions, reflections, and the patterns helping you move forward.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="px-6 pb-7 sm:px-10 sm:pb-10">
-        <LoginForm oauthProviders={oauthProviders} />
-      </CardContent>
-    </Card>
+    <div className="animate-reveal relative w-full max-w-md">
+      <p className="text-[20px] font-bold uppercase tracking-[.28em] text-[#72e7ff]">Welcome back</p>
+      <h1 className="text-7xl font-semibold text-white">Keep<br />Growing.</h1>
+      <div className="mt-8 flex items-center gap-3">
+        <span className="h-px w-10 bg-[#72e7ff]" />
+        <p className=" *:text-white">Your life is still in motion.</p>
+      </div>
+      <p className="mt-4 max-w-sm text-xs leading-6 text-white/40">Return to the intentions you chose, the patterns you noticed, and the next step that still feels true.</p>
+
+      <div className="mt-9"><GoogleAuthButton enabled={google} label="Continue with Google" /></div>
+
+      <div className="mt-5 flex items-center gap-2 text-[10px] tracking-wide text-white/30"><LockKeyhole className="size-3.5" />Secure passwordless authentication</div>
+      <p className="mt-10 text-xs text-white/30">New to GrowthAI? <Link href="/signup" className="font-semibold text-white underline decoration-[#72e7ff]/50 underline-offset-4 transition hover:text-[#72e7ff]">Create your space</Link></p>
+    </div>
   )
 }

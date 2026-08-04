@@ -105,7 +105,7 @@ export function UserSidebarShell({ children, user }: UserSidebarShellProps) {
 
             <Link
               href="/goals"
-              className="flex h-10 items-center rounded-full bg-neutral-950 px-4 text-xs font-bold text-white transition hover:bg-neutral-800 group-data-[collapsible=icon]:hidden"
+              className="flex h-10 items-center rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground transition hover:bg-primary/85 group-data-[collapsible=icon]:hidden"
             >
               + New intention
             </Link>

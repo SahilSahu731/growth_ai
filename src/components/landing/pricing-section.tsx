@@ -40,7 +40,7 @@ export function PricingSection({ compact = false }: { compact?: boolean }) {
                 </li>
               ))}
             </ul>
-            <Button asChild className="h-11 rounded-full bg-neutral-950 text-white hover:bg-neutral-800">
+            <Button asChild className="h-11 rounded-full bg-primary text-primary-foreground hover:bg-primary/85">
               <Link href={plan.id === "free" ? "/signup" : `/api/billing/checkout?plan=${plan.id}`}>
                 {plan.id === "free" ? "Start free" : `Choose ${plan.name}`}
               </Link>

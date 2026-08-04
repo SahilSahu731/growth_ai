@@ -1,25 +1,32 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { SignupForm } from "@/components/auth/signup-form"
+import Link from "next/link"
+import { LockKeyhole } from "lucide-react"
+
+import { GoogleAuthButton } from "@/components/auth/google-auth-button"
 import { getOAuthProviderAvailability } from "@/lib/oauth-config"
 
 export const dynamic = "force-dynamic"
 
-export default async function SignupPage({ searchParams }: { searchParams: Promise<{ ref?: string }> }) {
-  const oauthProviders = getOAuthProviderAvailability()
-  const { ref } = await searchParams
+const areas = ["Health", "Relationships", "Purpose", "Wellbeing"]
+
+export default function SignupPage() {
+  const { google } = getOAuthProviderAvailability()
 
   return (
-    <Card className="auth-card animate-reveal overflow-hidden rounded-[2rem] border border-white/10 bg-white/92 shadow-[0_32px_90px_rgba(0,0,0,.35)]">
-      <CardHeader className="gap-3 px-6 pt-8 sm:px-10 sm:pt-10">
-        <p className="flex items-center gap-2 text-[0.64rem] font-bold uppercase tracking-[0.2em] text-amber-200/70"><span className="h-px w-7 bg-amber-200/50" />Begin somewhere real</p>
-        <CardTitle className="text-5xl font-black leading-[.96] tracking-[-.055em] text-(--landing-ink) sm:text-6xl">Make room<br /><span className="font-editorial font-normal italic text-neutral-400">for change.</span></CardTitle>
-        <CardDescription className="text-sm leading-7 text-(--landing-muted)">
-          Create your GrowthAI account, then choose one part of life that deserves your attention.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="px-6 pb-7 sm:px-10 sm:pb-10">
-        <SignupForm oauthProviders={oauthProviders} referralCode={ref?.slice(0, 32)} />
-      </CardContent>
-    </Card>
+    <div className="animate-reveal relative w-full max-w-md">
+      <p className="text-[20px] font-bold uppercase tracking-[.28em] text-[#72e7ff]">Begin exactly here</p>
+      <h1 className="mt-5 text-7xl font-semibold text-white">Grow into<br />your life.</h1>
+      <div className="mt-8 flex items-center gap-3">
+        <span className="h-px w-10 bg-[#72e7ff]" />
+        <p className="font-semibold text-white">One direction. All of you.</p>
+      </div>
+      <p className="mt-4 max-w-sm text-xs leading-6 text-white/40">Build a private practice for changing what matters—without turning your life into another performance.</p>
+      {/* <div className="mt-5 flex flex-wrap gap-1.5">{areas.map((area) => <span key={area} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold text-white/35">{area}</span>)}</div> */}
+
+      <div className="mt-8"><GoogleAuthButton enabled={google} label="Start with Google" /></div>
+
+      <div className="mt-5 flex items-center gap-2 text-sm tracking-wide text-white/30"><LockKeyhole className="size-3.5" />Private, passwordless, and free to begin</div>
+      <p className="mt-6 text-[12px] leading-5 text-white/20">GrowthAI supports reflection and planning. It is not medical or emergency care.</p>
+      <p className="mt-6 text-xs text-white/30">Already have a space? <Link href="/login" className="font-semibold text-white underline decoration-[#72e7ff]/50 underline-offset-4 transition hover:text-[#72e7ff]">Sign in</Link></p>
+    </div>
   )
 }
