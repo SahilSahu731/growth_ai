@@ -8,7 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p convex/tsconfig.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "verify": "npm run lint && npm run typecheck && npm run test"

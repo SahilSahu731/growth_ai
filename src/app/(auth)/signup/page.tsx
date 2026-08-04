@@ -6,8 +6,6 @@ import { getOAuthProviderAvailability } from "@/lib/oauth-config"
 
 export const dynamic = "force-dynamic"
 
-const areas = ["Health", "Relationships", "Purpose", "Wellbeing"]
-
 export default function SignupPage() {
   const { google } = getOAuthProviderAvailability()
 

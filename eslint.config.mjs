@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "timmo/**",
     "coverage/**",
+    "convex/_generated/**",
   ]),
 ]);
 

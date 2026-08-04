@@ -33,7 +33,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           <div className="mx-auto max-w-2xl text-center">
             <p className="font-editorial text-[clamp(2.75rem,4.8vw,5.25rem)] font-normal italic leading-[.96] tracking-[-.035em] text-white/90">“A good life is noticed,<br />chosen, and practiced.”</p>
             <div className="mx-auto my-7 h-px w-12 bg-[#72e7ff]/70 shadow-[0_0_18px_rgba(114,231,255,.5)]" />
-            <p className="text-[10px] font-bold uppercase tracking-[.28em] text-white/40">GrowthAI · your private reflection space</p>
+            <p className="text-[20px] text-primary font-semibold uppercase">GrowthAI · your private reflection space</p>
           </div>
 
           <div className="auth-snapshot mx-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-[#72e7ff]/25 bg-[#070b0d]/75 shadow-[0_20px_55px_rgba(0,0,0,.4)] backdrop-blur-2xl">
