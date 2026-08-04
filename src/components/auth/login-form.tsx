@@ -102,7 +102,7 @@ export function LoginForm({ oauthProviders }: LoginFormProps) {
       </Button>
 
       <p className="text-center text-sm text-(--landing-muted)">
-        New to Growth_AI?{" "}
+        New to GrowthAI?{" "}
         <Link href="/signup" className="font-medium text-(--landing-ink) underline underline-offset-4 hover:text-(--landing-accent)">
           Create an account
         </Link>

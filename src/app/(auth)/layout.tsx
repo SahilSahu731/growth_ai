@@ -20,7 +20,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       <div className="relative z-10 mx-auto w-full max-w-[1340px]">
         <header className="flex items-center justify-between rounded-2xl border border-black/10 bg-white/84 px-4 py-3 backdrop-blur sm:rounded-full sm:px-6">
           <Link href="/" className="font-display text-xl tracking-tight text-(--landing-ink) sm:text-2xl">
-            Growth_AI
+            GrowthAI
           </Link>
           <Link href="/" className="text-xs text-(--landing-muted) underline-offset-4 hover:underline sm:text-sm">
             Back to Home
@@ -28,9 +28,9 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
         </header>
 
         <div className="mt-4 rounded-2xl border border-black/10 bg-white/70 px-4 py-3 lg:hidden">
-          <p className="text-[0.68rem] uppercase tracking-[0.18em] text-(--landing-muted)">Growth Intelligence</p>
+          <p className="text-[0.68rem] uppercase tracking-[0.18em] text-(--landing-muted)">Accountability for builders</p>
           <p className="mt-1 text-sm leading-6 text-(--landing-muted)">
-            Turn goals into systems with adaptive accountability.
+            Commit to one thing, report what moved, and recover quickly when momentum breaks.
           </p>
         </div>
 

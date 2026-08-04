@@ -15,9 +15,10 @@ const INITIAL_STATE: AuthActionState = {}
 
 type SignupFormProps = {
   oauthProviders: OAuthProviderAvailability
+  referralCode?: string
 }
 
-export function SignupForm({ oauthProviders }: SignupFormProps) {
+export function SignupForm({ oauthProviders, referralCode }: SignupFormProps) {
   const router = useRouter()
 
   const [state, formAction, isPending] = useActionState(
@@ -55,6 +56,7 @@ export function SignupForm({ oauthProviders }: SignupFormProps) {
 
   return (
     <form action={formAction} className="space-y-5 sm:space-y-6">
+      {referralCode ? <input type="hidden" name="referralCode" value={referralCode} /> : null}
       <OAuthButtons providers={oauthProviders} mode="signup" />
       <div className="relative flex items-center justify-center">
         <div className="h-px w-full bg-black/10" />

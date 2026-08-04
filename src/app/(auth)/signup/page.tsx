@@ -4,8 +4,9 @@ import { getOAuthProviderAvailability } from "@/lib/oauth-config"
 
 export const dynamic = "force-dynamic"
 
-export default function SignupPage() {
+export default async function SignupPage({ searchParams }: { searchParams: Promise<{ ref?: string }> }) {
   const oauthProviders = getOAuthProviderAvailability()
+  const { ref } = await searchParams
 
   return (
     <Card className="animate-reveal overflow-hidden rounded-[2rem] border border-black/10 bg-white/92 shadow-2xl shadow-amber-950/10">
@@ -13,11 +14,11 @@ export default function SignupPage() {
         <p className="text-[0.68rem] uppercase tracking-[0.18em] text-(--landing-muted)">Start Your Journey</p>
         <CardTitle className="font-display text-4xl leading-tight text-(--landing-ink)">Create account</CardTitle>
         <CardDescription className="text-sm leading-7 text-(--landing-muted)">
-          Set up your Growth_AI account in less than a minute.
+          Create your GrowthAI account, then define one project you intend to ship.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-6 pb-7 sm:px-10 sm:pb-10">
-        <SignupForm oauthProviders={oauthProviders} />
+        <SignupForm oauthProviders={oauthProviders} referralCode={ref?.slice(0, 32)} />
       </CardContent>
     </Card>
   )

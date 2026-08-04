@@ -1,24 +1,9 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Geist_Mono, Manrope } from "next/font/google";
 import "./globals.css";
-import { cn } from "@/lib/utils";
-
-const manrope = Manrope({ subsets: ["latin"], variable: "--font-sans" });
-
-const bricolageGrotesque = Bricolage_Grotesque({
-  subsets: ["latin"],
-  variable: "--font-display",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
-  title: "PickAI - Compare Anything",
-  description:
-    "PickAI compares anything with weighted scoring, hidden costs, risks, live research, questions to ask, and a final recommendation.",
+  title: { default: "GrowthAI — Accountability for builders", template: "%s | GrowthAI" },
+  description: "Tell GrowthAI what you are building, and it makes sure you do not quietly abandon it.",
 };
 
 export default function RootLayout({
@@ -27,13 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={cn("font-sans", manrope.variable, bricolageGrotesque.variable)}
-    >
-      <body className={`${geistMono.variable} antialiased`}>
-        {children}
-      </body>
+    <html lang="en" className="font-sans">
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

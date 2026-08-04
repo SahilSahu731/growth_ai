@@ -1,83 +1,19 @@
+import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
-
 import { authOptions } from "@/auth"
-import { ProjectForm } from "@/components/developer/project-form"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { findUserByEmail, getDeveloperProfile, listProjectsByUserId } from "@/lib/db"
+import { GrowthProjectForm } from "@/components/growth/project-form"
+import { getGrowthDashboard } from "@/lib/data/growth"
 
 export default async function ProjectsPage() {
   const session = await getServerSession(authOptions)
-  const email = session?.user?.email?.trim().toLowerCase()
-
-  if (!email) redirect("/login")
-
-  const user = await findUserByEmail(email)
-  if (!user) redirect("/login")
-
-  const profile = await getDeveloperProfile(user.id)
-  if (!profile) redirect("/onboarding")
-
-  const projects = await listProjectsByUserId(user.id)
-
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-(--landing-muted)">Projects</p>
-          <h1 className="font-display text-4xl leading-none text-(--landing-ink)">Proof-of-work pipeline</h1>
-          <p className="mt-2 text-sm text-(--landing-muted)">Track the projects that make your growth visible.</p>
-        </div>
-        <Badge className="w-fit bg-(--landing-accent-soft) text-(--landing-accent)">GitHub ready / manual v1</Badge>
-      </section>
-
-      <Card className="rounded-2xl border border-black/10 bg-white/92">
-        <CardHeader>
-          <CardDescription className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-(--landing-muted)">Create</CardDescription>
-          <CardTitle className="font-display text-2xl text-(--landing-ink)">Add project metadata</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ProjectForm />
-        </CardContent>
-      </Card>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        {projects.length === 0 ? (
-          <Card className="rounded-2xl border border-black/10 bg-white/92 lg:col-span-2">
-            <CardContent className="py-8">
-              <p className="text-sm leading-6 text-(--landing-muted)">No projects yet. Add one project and connect it to the goal you are actively building toward.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          projects.map((project) => (
-            <Card key={project.id} className="rounded-2xl border border-black/10 bg-white/92">
-              <CardHeader className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="bg-(--landing-accent-soft) text-(--landing-accent)">{project.status}</Badge>
-                  <Badge variant="outline" className="border-black/10 bg-white font-mono text-(--landing-muted)">{project.projectType.replaceAll("_", " ")}</Badge>
-                </div>
-                <CardTitle className="font-display text-2xl text-(--landing-ink)">{project.title}</CardTitle>
-                <CardDescription>{project.stack || "Stack not defined yet"}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs text-(--landing-muted)">
-                    <span>Portfolio readiness</span>
-                    <span>{project.portfolioReadiness}%</span>
-                  </div>
-                  <Progress value={project.portfolioReadiness} className="h-2 rounded-full bg-(--landing-accent-soft) *:data-[slot=progress-indicator]:bg-(--landing-accent)" />
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <p className="truncate rounded-xl border border-black/10 bg-(--landing-surface) p-3 text-xs text-(--landing-muted)">Repo: {project.repoUrl || "pending"}</p>
-                  <p className="truncate rounded-xl border border-black/10 bg-(--landing-surface) p-3 text-xs text-(--landing-muted)">Live: {project.liveUrl || "pending"}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </section>
-    </div>
-  )
+  if (!session?.user?.id) redirect("/login")
+  const dashboard = await getGrowthDashboard(session.user.id)
+  if (!dashboard?.preferences) redirect("/onboarding")
+  const canCreate = dashboard.user.planTier !== "free" || dashboard.projects.filter(p => p.status === "active").length < 1
+  return <div className="mx-auto w-full max-w-6xl space-y-6">
+    <section><p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Commitments</p><h1 className="mt-3 text-4xl font-semibold tracking-tight text-white">Projects you intend to finish.</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">A project is not a task list. It has a ship date, a clear finish line, and one current next action.</p></section>
+    <section className="grid gap-4 md:grid-cols-2">{dashboard.projects.map(project => <Link key={project.id} href={`/projects/${project.id}`} className="rounded-3xl border border-white/10 bg-[#2b2b2b] p-6 transition hover:border-emerald-400/40"><div className="flex items-center justify-between"><span className="rounded-full border border-white/10 px-2.5 py-1 text-xs capitalize text-zinc-400">{project.status}</span>{project.isPrimary ? <span className="text-xs text-emerald-400">Primary</span> : null}</div><h2 className="mt-5 text-2xl font-semibold text-white">{project.name}</h2><p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-400">{project.description}</p><div className="mt-5 border-t border-white/10 pt-4"><p className="text-xs uppercase tracking-wide text-zinc-600">Next action</p><p className="mt-2 text-sm text-zinc-200">{project.currentNextAction}</p></div></Link>)}</section>
+    <section className="rounded-3xl border border-white/10 bg-[#2b2b2b] p-6 sm:p-8"><h2 className="text-2xl font-semibold text-white">Create another commitment</h2>{canCreate ? <div className="mt-6"><GrowthProjectForm /></div> : <div className="mt-4 rounded-2xl border border-amber-300/15 bg-amber-300/[0.04] p-4"><p className="text-sm text-zinc-300">The free plan deliberately keeps you focused on one active commitment.</p><Link href="/pricing" className="mt-2 inline-block text-sm text-emerald-400">See Pro plans →</Link></div>}</section>
+  </div>
 }

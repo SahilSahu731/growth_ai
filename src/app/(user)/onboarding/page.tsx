@@ -2,9 +2,9 @@ import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/auth"
-import { OnboardingForm } from "@/components/developer/onboarding-form"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { findUserByEmail, getDeveloperProfile } from "@/lib/db"
+import { GrowthOnboardingForm } from "@/components/growth/onboarding-form"
+import { getOnboardingState } from "@/lib/data/growth"
+import { findUserByEmail } from "@/lib/data/users"
 
 export default async function OnboardingPage() {
   const session = await getServerSession(authOptions)
@@ -15,31 +15,17 @@ export default async function OnboardingPage() {
   const user = await findUserByEmail(email)
   if (!user) redirect("/login")
 
-  const profile = await getDeveloperProfile(user.id)
-  if (profile) redirect("/dashboard")
+  const state = await getOnboardingState(user.id)
+  if (state?.completed) redirect("/dashboard")
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
-      <section className="rounded-2xl border border-black/10 bg-(--landing-ink) p-5 text-(--landing-surface) shadow-xl shadow-black/10 sm:p-7">
-        <p className="font-mono text-[0.68rem] uppercase tracking-[0.18em] text-(--landing-accent-soft)">Dev Cockpit Setup</p>
-        <h1 className="mt-3 font-display text-4xl leading-none sm:text-5xl">Calibrate your developer growth system.</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-white/72">
-          Choose how you build, where you are headed, and how much coding energy you can spend each week.
-          Growth_AI will turn that into sprints, skill signals, and proof-of-work.
-        </p>
+    <div className="mx-auto w-full max-w-5xl space-y-7">
+      <section className="rounded-3xl border border-white/10 bg-[#2b2b2b] p-6 sm:p-9">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Set up in under five minutes</p>
+        <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-6xl">Turn one real project into a commitment.</h1>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-400">GrowthAI works when the outcome is concrete. Define what shipped means, choose when we should check in, and start with the next observable action.</p>
       </section>
-
-      <Card className="rounded-2xl border border-black/10 bg-white/92">
-        <CardHeader>
-          <CardDescription className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-(--landing-muted)">
-            Profile Matrix
-          </CardDescription>
-          <CardTitle className="font-display text-3xl text-(--landing-ink)">Developer operating mode</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <OnboardingForm />
-        </CardContent>
-      </Card>
+      <section className="rounded-3xl border border-white/10 bg-[#2b2b2b] p-6 sm:p-9"><GrowthOnboardingForm /></section>
     </div>
   )
 }

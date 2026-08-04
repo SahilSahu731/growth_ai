@@ -1,83 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GrowthAI
 
-## Auth + Database Setup
+GrowthAI is an accountability product for builders and indie hackers. A user commits to one concrete project, checks in with observable progress, receives concise evidence-grounded coaching, and builds a trustworthy history of actions, blockers, recovery, and shipped work.
 
-This project uses:
+## What is implemented
 
-- `next-auth` (Credentials + optional OAuth providers)
-- Neon PostgreSQL (`@neondatabase/serverless`)
+- Credentials, GitHub, and optional Google authentication with protected server routes.
+- Guided onboarding: commitment, definition of shipped, deadline, next action, coaching tone, timezone, and cadence.
+- Convex-backed projects, schedules, prompts, check-ins, evidence, streaks, project events, patterns, reviews, notifications, subscriptions, GitHub activity, public pages, and referrals.
+- AI accountability through Gemini with bounded structured output, minimal context, timeout handling, and a deterministic fallback.
+- Timezone-aware scheduling, idempotent prompt creation, email delivery through Resend, missed-check-in handling, and recovery-oriented streaks.
+- Evidence-backed patterns, editable weekly reviews, opt-in public progress, JSON export, and verified permanent account deletion.
+- Razorpay subscription checkout and signature-verified, idempotent webhooks.
+- GitHub OAuth plus signature-verified webhook normalization. Repository events remain supporting evidence and never replace a user check-in.
 
-### 1. Configure environment variables
+## Stack
 
-Copy `.env.example` to `.env.local` and set values:
+- Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4
+- Convex as the application database
+- NextAuth v4 for session management
+- Gemini for optional coaching/reviews
+- Resend for transactional prompts
+- Razorpay for India-first billing
+- Vitest for domain and integration-boundary tests
+
+## Local setup
 
 ```bash
+npm install
 cp .env.example .env.local
-```
-
-Required variables:
-
-- `DATABASE_URL`
-- `NEXTAUTH_SECRET` (or `AUTH_SECRET`)
-- `NEXTAUTH_URL`
-
-Optional OAuth variables (enable Google login button):
-
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-
-Optional AI variables (required if you want AI-assisted goal creation):
-
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL` (defaults to `gemini-2.0-flash`)
-
-### 2. Start the app
-
-```bash
+npm run convex:dev
 npm run dev
 ```
 
-Routes:
+`convex dev` creates or links a deployment. Copy its URL and a server deployment key into `.env.local`. The deployment key is server-only and must never use a `NEXT_PUBLIC_` prefix.
 
-- `/login`
-- `/signup`
-- `/dashboard` (protected)
-- `/goals` (protected)
-- `/goals/[goalId]` (protected)
+The app remains functional without Gemini: coaching and weekly reviews use deterministic fallbacks. Email, billing, GitHub App webhooks, and OAuth require their respective credentials.
 
-Note: the `app_users` table is created automatically on first auth request.
-
-## Getting Started
-
-First, run the development server:
+## Verification
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run verify
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`verify` runs lint, TypeScript, and tests. Run the independent production compilation gate with `npm run build` (kept separate because Next.js build manages its generated route types).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scheduled jobs and webhooks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Call `GET /api/cron/check-ins` with `Authorization: Bearer $CRON_SECRET` at least every 5–15 minutes.
+- Configure Razorpay to send subscription events to `/api/webhooks/razorpay`.
+- Configure a GitHub App webhook at `/api/webhooks/github`; repository selections use the internal `projectId|owner/repository` mapping.
+- Keep all webhook secrets distinct across development, preview, and production.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [roadmap.md](./roadmap.md) for the product plan and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for system boundaries and operating notes.

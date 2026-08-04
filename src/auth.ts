@@ -1,13 +1,20 @@
 import { type NextAuthOptions } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
+import GitHubProvider from "next-auth/providers/github"
 
-import { getGoogleOAuthConfig } from "@/lib/oauth-config"
-import { findUserByEmail, upsertOAuthUser } from "@/lib/db"
+import { getGithubOAuthConfig, getGoogleOAuthConfig } from "@/lib/oauth-config"
+import { findUserByEmail, upsertOAuthUser } from "@/lib/data/users"
+import { upsertGithubConnection } from "@/lib/data/growth"
 import { verifyPassword } from "@/lib/password"
 
 const providers: NonNullable<NextAuthOptions["providers"]> = []
 const googleOAuth = getGoogleOAuthConfig()
+const githubOAuth = getGithubOAuthConfig()
+
+if (githubOAuth.enabled && githubOAuth.clientId && githubOAuth.clientSecret) {
+  providers.push(GitHubProvider({ clientId: githubOAuth.clientId, clientSecret: githubOAuth.clientSecret }))
+}
 
 if (googleOAuth.enabled && googleOAuth.clientId && googleOAuth.clientSecret) {
   providers.push(
@@ -58,14 +65,18 @@ export const authOptions: NextAuthOptions = {
   },
   providers,
   callbacks: {
-    async signIn({ user, account }) {
-      if (account?.provider === "google" && user.email) {
+    async signIn({ user, account, profile }) {
+      if ((account?.provider === "google" || account?.provider === "github") && user.email) {
         try {
-          await upsertOAuthUser({
+          const appUser = await upsertOAuthUser({
             email: user.email,
             name: user.name,
-            provider: "google",
+            provider: account.provider,
           })
+          if (account.provider === "github") {
+            const githubProfile = profile as { login?: string } | undefined
+            await upsertGithubConnection({ userId: appUser.id, githubUserId: account.providerAccountId, login: githubProfile?.login ?? user.name ?? "github-user", selectedRepositories: [] })
+          }
         } catch (error) {
           console.error("Failed to persist OAuth user", error)
           return false

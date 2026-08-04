@@ -9,6 +9,7 @@ import {
   ComputerSettingsIcon,
   DashboardSquare01Icon,
   File01Icon,
+  Folder01Icon,
 } from "@hugeicons/core-free-icons"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -37,8 +38,9 @@ type UserSidebarShellProps = {
 }
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Saved comparisons", icon: DashboardSquare01Icon },
-  { href: "/reports", label: "Reports", icon: File01Icon },
+  { href: "/dashboard", label: "Today", icon: DashboardSquare01Icon },
+  { href: "/projects", label: "Projects", icon: Folder01Icon },
+  { href: "/reviews", label: "Weekly reviews", icon: File01Icon },
   { href: "/settings", label: "Settings", icon: ComputerSettingsIcon },
 ] as const
 
@@ -51,20 +53,21 @@ function getInitials(value: string): string {
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/dashboard") return pathname === "/dashboard"
-  if (href === "/reports") return pathname.startsWith("/reports")
+  if (href === "/projects") return pathname.startsWith("/projects")
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
 function currentTitle(pathname: string): string {
-  if (pathname.startsWith("/reports")) return "Decision report"
+  if (pathname.startsWith("/projects")) return "Projects"
+  if (pathname.startsWith("/reviews")) return "Weekly reviews"
   if (pathname.startsWith("/settings")) return "Settings"
-  return "Saved comparisons"
+  return "Today"
 }
 
 export function UserSidebarShell({ children, user }: UserSidebarShellProps) {
   const pathname = usePathname()
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const displayName = user.name ?? "PickAI User"
+  const displayName = user.name ?? "GrowthAI builder"
   const displayEmail = user.email ?? ""
   const initials = useMemo(() => getInitials(user.name ?? user.email ?? "User"), [user.email, user.name])
 
@@ -94,17 +97,17 @@ export function UserSidebarShell({ children, user }: UserSidebarShellProps) {
                 className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-sm font-medium text-white hover:bg-zinc-800 group-data-[collapsible=icon]:hidden"
               >
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#10a37f] text-xs font-semibold text-white">
-                  P
+                  G
                 </span>
-                <span className="truncate">PickAI</span>
+                <span className="truncate">GrowthAI</span>
               </Link>
             </div>
 
             <Link
-              href="/dashboard"
+              href="/projects"
               className="flex h-10 items-center rounded-lg bg-zinc-800 px-3 text-sm font-medium text-white transition hover:bg-zinc-700 group-data-[collapsible=icon]:hidden"
             >
-              View saved decisions
+              + New commitment
             </Link>
           </SidebarHeader>
 
@@ -130,7 +133,7 @@ export function UserSidebarShell({ children, user }: UserSidebarShellProps) {
 
           <SidebarFooter className="border-t border-zinc-800 p-2">
             <div className="rounded-lg border border-zinc-800 p-2 group-data-[collapsible=icon]:hidden">
-              <p className="text-xs leading-5 text-zinc-500">Comparison work now lives in its own research flow outside this dashboard shell.</p>
+              <p className="text-xs leading-5 text-zinc-500">The goal is not more planning. It is honest progress toward something shipped.</p>
             </div>
 
             <Link
@@ -169,7 +172,7 @@ export function UserSidebarShell({ children, user }: UserSidebarShellProps) {
             <SidebarTrigger className="size-9 rounded-lg border border-white/10 bg-[#2f2f2f] text-zinc-300 hover:bg-zinc-700 md:hidden" />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-zinc-100">{currentTitle(pathname)}</p>
-              <p className="truncate text-xs text-zinc-500">Compare anything with sources, risks, and tradeoffs</p>
+              <p className="truncate text-xs text-zinc-500">Accountability for builders who want to ship</p>
             </div>
           </header>
 
