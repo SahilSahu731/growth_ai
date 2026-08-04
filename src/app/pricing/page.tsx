@@ -1,27 +1,5 @@
 import Link from "next/link"
-
 import { PricingSection } from "@/components/landing/pricing-section"
 
-export const metadata = {
-  title: "Pricing | GrowthAI",
-  description: "Simple plans for accountability that helps builders ship.",
-}
-
-export default function PricingPage() {
-  return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      <header className="border-b border-white/10">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold"><span className="flex size-8 items-center justify-center rounded-xl bg-emerald-400 text-zinc-950">G</span>GrowthAI</Link>
-          <Link href="/login" className="text-sm text-zinc-400 transition hover:text-white">Log in</Link>
-        </div>
-      </header>
-      <div className="px-4 pt-20 text-center sm:px-6">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-400">Plans</p>
-        <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-semibold tracking-tight sm:text-6xl">Ship one thing free. Upgrade when you need depth.</h1>
-      </div>
-      <PricingSection compact />
-      <p className="mx-auto max-w-3xl px-4 pb-20 text-center text-sm leading-6 text-zinc-500">Prices are in INR and include the product features shown above. Taxes may apply. Payment credentials must be configured before checkout is available.</p>
-    </main>
-  )
-}
+export const metadata = { title: "Pricing | GrowthAI", description: "Simple plans for a calmer, more personal way to grow." }
+export default function PricingPage() { return <main className="growth-grid min-h-screen bg-[#fafafa] text-neutral-950"><header className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6"><Link href="/" className="font-display text-base tracking-wide">GrowthAI</Link><Link href="/login" className="rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs font-bold">Log in</Link></header><div className="px-4 pt-16 text-center sm:px-6"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-neutral-400">Plans</p><h1 className="mx-auto mt-4 max-w-4xl text-4xl font-black tracking-[-.045em] sm:text-6xl">Start with one meaningful direction.<br /><span className="font-editorial font-normal italic text-neutral-400">Grow deeper when you are ready.</span></h1></div><PricingSection compact /><p className="mx-auto max-w-3xl px-4 pb-20 text-center text-xs leading-6 text-neutral-400">Prices are in INR. Taxes may apply. Paid checkout becomes available after billing credentials and test-mode lifecycle validation are complete.</p></main> }

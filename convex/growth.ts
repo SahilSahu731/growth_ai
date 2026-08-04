@@ -32,6 +32,7 @@ function cleanProject(project: any) {
   if (!value) return null
   return {
     ...value,
+    lifeArea: value.lifeArea ?? "personal",
     nextActionDueAt: value.nextActionDueAt ?? null,
     publicSlug: value.publicSlug ?? null,
     shippedAt: value.shippedAt ?? null,
@@ -107,7 +108,7 @@ export const completeOnboarding = internalMutation({
   args: {
     userId: v.string(),
     project: v.object({
-      name: v.string(), description: v.string(), whyItMatters: v.string(), definitionOfShipped: v.string(),
+      name: v.string(), lifeArea: v.union(v.literal("health"), v.literal("career"), v.literal("relationships"), v.literal("learning"), v.literal("finances"), v.literal("creativity"), v.literal("wellbeing"), v.literal("personal")), description: v.string(), whyItMatters: v.string(), definitionOfShipped: v.string(),
       targetShipDate: v.string(), currentNextAction: v.string(), nextActionDueAt: v.optional(v.string()),
     }),
     preferences: v.object({
@@ -209,7 +210,7 @@ export const getDashboard = internalQuery({
 
 export const createProject = internalMutation({
   args: {
-    userId: v.string(), name: v.string(), description: v.string(), whyItMatters: v.string(), definitionOfShipped: v.string(),
+    userId: v.string(), name: v.string(), lifeArea: v.union(v.literal("health"), v.literal("career"), v.literal("relationships"), v.literal("learning"), v.literal("finances"), v.literal("creativity"), v.literal("wellbeing"), v.literal("personal")), description: v.string(), whyItMatters: v.string(), definitionOfShipped: v.string(),
     targetShipDate: v.string(), currentNextAction: v.string(), nextActionDueAt: v.optional(v.string()), nextPromptAt: v.string(),
   },
   handler: async (ctx, args) => {

@@ -10,6 +10,7 @@ import type {
   GrowthDashboard,
   GrowthProject,
   PatternInsight,
+  LifeArea,
   ProjectStatus,
   UserPreferences,
   WeeklyReview,
@@ -40,7 +41,7 @@ export function getOnboardingState(userId: string): Promise<OnboardingState | nu
 export function completeOnboarding(input: {
   userId: string
   project: {
-    name: string; description: string; whyItMatters: string; definitionOfShipped: string;
+    name: string; lifeArea: LifeArea; description: string; whyItMatters: string; definitionOfShipped: string;
     targetShipDate: string; currentNextAction: string; nextActionDueAt?: string
   }
   preferences: {
@@ -56,7 +57,7 @@ export function getGrowthDashboard(userId: string): Promise<GrowthDashboard | nu
 }
 
 export function createGrowthProject(input: {
-  userId: string; name: string; description: string; whyItMatters: string; definitionOfShipped: string;
+  userId: string; name: string; lifeArea: LifeArea; description: string; whyItMatters: string; definitionOfShipped: string;
   targetShipDate: string; currentNextAction: string; nextActionDueAt?: string; nextPromptAt: string
 }): Promise<GrowthProject> {
   return convexMutation("growth:createProject", input)

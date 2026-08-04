@@ -24,7 +24,7 @@ import {
 import { analyzeCheckIn, generateWeeklyReview } from "@/lib/growth/accountability-ai"
 import { isMeaningfulCheckIn, isValidTimezone, localDateKey, nextCheckInAt, normalizeProjectSlug, updatedStreak } from "@/lib/growth/domain"
 import { detectPatterns } from "@/lib/growth/patterns"
-import type { CheckInCadence, CheckInState, CoachTone, ProjectStatus } from "@/lib/growth/types"
+import type { CheckInCadence, CheckInState, CoachTone, LifeArea, ProjectStatus } from "@/lib/growth/types"
 
 export type GrowthActionState = { error?: string; success?: string; projectId?: string }
 
@@ -32,6 +32,7 @@ const TONES = new Set<CoachTone>(["supportive", "balanced", "blunt"])
 const CADENCES = new Set<CheckInCadence>(["daily", "every_other_day"])
 const CHECK_IN_STATES = new Set<CheckInState>(["progress", "blocked", "avoiding", "pause_request"])
 const PROJECT_STATUSES = new Set<ProjectStatus>(["active", "paused", "shipped", "abandoned", "archived"])
+const LIFE_AREAS = new Set<LifeArea>(["health", "career", "relationships", "learning", "finances", "creativity", "wellbeing", "personal"])
 
 function text(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -57,6 +58,7 @@ async function currentUserId() {
 function projectFields(formData: FormData) {
   return {
     name: text(formData, "name"),
+    lifeArea: text(formData, "lifeArea") as LifeArea,
     description: text(formData, "description"),
     whyItMatters: text(formData, "whyItMatters"),
     definitionOfShipped: text(formData, "definitionOfShipped"),
@@ -67,14 +69,15 @@ function projectFields(formData: FormData) {
 }
 
 function validateProject(project: ReturnType<typeof projectFields>) {
-  if (project.name.length < 3 || project.name.length > 80) return "Project name must be between 3 and 80 characters."
-  if (project.description.length < 12 || project.description.length > 600) return "Describe what you are building in 12–600 characters."
+  if (project.name.length < 3 || project.name.length > 80) return "Name your intention in 3–80 characters."
+  if (!LIFE_AREAS.has(project.lifeArea)) return "Choose the part of life you want to grow."
+  if (project.description.length < 12 || project.description.length > 600) return "Describe the change you want in 12–600 characters."
   if (project.whyItMatters.length < 8 || project.whyItMatters.length > 500) return "Explain why this matters to you."
-  if (project.definitionOfShipped.length < 8 || project.definitionOfShipped.length > 300) return "Define an observable shipped outcome."
+  if (project.definitionOfShipped.length < 8 || project.definitionOfShipped.length > 300) return "Describe how you will recognize meaningful progress."
   if (project.currentNextAction.length < 4 || project.currentNextAction.length > 240) return "Add one concrete next action."
   const target = new Date(`${project.targetShipDate}T23:59:59Z`)
-  if (!project.targetShipDate || Number.isNaN(target.getTime())) return "Choose a valid target ship date."
-  if (target.getTime() <= Date.now()) return "The target ship date must be in the future."
+  if (!project.targetShipDate || Number.isNaN(target.getTime())) return "Choose a valid reflection date."
+  if (target.getTime() <= Date.now()) return "The reflection date must be in the future."
   return null
 }
 
@@ -105,7 +108,7 @@ export async function completeOnboardingAction(_state: GrowthActionState, formDa
       },
     })
     revalidatePath("/dashboard")
-    return { success: "Your commitment is live.", projectId: created.id }
+    return { success: "Your growth intention is ready.", projectId: created.id }
   } catch (error) {
     console.error("Onboarding failed", error)
     return { error: error instanceof Error ? error.message : "Could not create your commitment." }
@@ -127,10 +130,10 @@ export async function createGrowthProjectAction(_state: GrowthActionState, formD
     }).toISOString()
     const created = await createGrowthProject({ userId, ...project, nextPromptAt })
     revalidatePath("/dashboard")
-    revalidatePath("/projects")
-    return { success: "Project commitment created.", projectId: created.id }
+    revalidatePath("/goals")
+    return { success: "Growth intention created.", projectId: created.id }
   } catch (caught) {
-    return { error: caught instanceof Error ? caught.message : "Could not create the project." }
+    return { error: caught instanceof Error ? caught.message : "Could not create this intention." }
   }
 }
 
@@ -143,7 +146,7 @@ export async function submitCheckInAction(_state: GrowthActionState, formData: F
   const nextAction = text(formData, "nextAction")
   const evidenceUrl = text(formData, "evidenceUrl")
   const state = text(formData, "state") as CheckInState
-  if (!projectId) return { error: "Project is missing." }
+  if (!projectId) return { error: "Growth intention is missing." }
   if (response.length < 8 || response.length > 4000) return { error: "Write at least one specific sentence about what happened." }
   if (nextAction.length < 4 || nextAction.length > 240) return { error: "Commit to one concrete next action." }
   if (!CHECK_IN_STATES.has(state)) return { error: "Choose the state that best matches today." }
@@ -153,7 +156,7 @@ export async function submitCheckInAction(_state: GrowthActionState, formData: F
 
   const workspace = await getProjectWorkspace(userId, projectId)
   const dashboard = await getGrowthDashboard(userId)
-  if (!workspace || !dashboard?.preferences) return { error: "Project not found." }
+  if (!workspace || !dashboard?.preferences) return { error: "Growth intention not found." }
   const localDate = localDateKey(new Date(), dashboard.preferences.timezone)
   const analysis = await analyzeCheckIn({
     project: workspace.project, recentCheckIns: workspace.checkIns, response, state, nextAction, tone: dashboard.preferences.coachTone,
@@ -177,9 +180,9 @@ export async function submitCheckInAction(_state: GrowthActionState, formData: F
     const patterns = detectPatterns([created, ...workspace.checkIns])
     await Promise.all(patterns.map((pattern) => upsertPatternInsight({ userId, projectId, ...pattern })))
     revalidatePath("/dashboard")
-    revalidatePath(`/projects/${projectId}`)
+    revalidatePath(`/goals/${projectId}`)
     revalidatePath("/reviews")
-    return { success: "Check-in saved. Your next action is committed.", projectId }
+    return { success: "Reflection saved. Your next step is waiting gently.", projectId }
   } catch (error) {
     console.error("Check-in failed", error)
     return { error: "Your update could not be saved. Your text is still in the form—please retry." }
@@ -195,8 +198,8 @@ export async function updateProjectStatusAction(formData: FormData): Promise<voi
   if (!projectId || !PROJECT_STATUSES.has(status)) return
   await updateProjectStatus({ userId, projectId, status, ...(reason ? { reason } : {}) })
   revalidatePath("/dashboard")
-  revalidatePath("/projects")
-  revalidatePath(`/projects/${projectId}`)
+  revalidatePath("/goals")
+  revalidatePath(`/goals/${projectId}`)
 }
 
 export async function checkInFeedbackAction(formData: FormData): Promise<void> {
@@ -206,7 +209,7 @@ export async function checkInFeedbackAction(formData: FormData): Promise<void> {
   const projectId = text(formData, "projectId")
   if (!checkInId) return
   await setCheckInFeedback({ userId, checkInId, helpful: text(formData, "helpful") === "true", correction: text(formData, "correction") || undefined })
-  if (projectId) revalidatePath(`/projects/${projectId}`)
+  if (projectId) revalidatePath(`/goals/${projectId}`)
 }
 
 export async function updatePreferencesAction(_state: GrowthActionState, formData: FormData): Promise<GrowthActionState> {
@@ -253,7 +256,7 @@ export async function generateWeeklyReviewAction(formData: FormData): Promise<vo
     meaningfulProgressCount: meaningful, ...draft,
   })
   revalidatePath("/reviews")
-  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/goals/${projectId}`)
 }
 
 export async function editWeeklyReviewAction(_state: GrowthActionState, formData: FormData): Promise<GrowthActionState> {
@@ -276,7 +279,7 @@ export async function setPatternStatusAction(formData: FormData): Promise<void> 
   if (!patternId || !["acknowledged", "dismissed", "resolved"].includes(status)) return
   await setPatternStatus({ userId, patternId, status })
   revalidatePath("/dashboard")
-  if (projectId) revalidatePath(`/projects/${projectId}`)
+  if (projectId) revalidatePath(`/goals/${projectId}`)
 }
 
 export async function setPublicProjectAction(_state: GrowthActionState, formData: FormData): Promise<GrowthActionState> {

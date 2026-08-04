@@ -1,6 +1,7 @@
 export type PlanTier = "free" | "pro" | "founder"
 export type CoachTone = "supportive" | "balanced" | "blunt"
 export type CheckInCadence = "daily" | "every_other_day"
+export type LifeArea = "health" | "career" | "relationships" | "learning" | "finances" | "creativity" | "wellbeing" | "personal"
 export type ProjectStatus = "active" | "paused" | "shipped" | "abandoned" | "archived"
 export type CheckInState = "progress" | "blocked" | "avoiding" | "pause_request"
 export type CheckInClassification =
@@ -36,6 +37,7 @@ export type GrowthProject = {
   id: string
   userId: string
   name: string
+  lifeArea: LifeArea
   description: string
   whyItMatters: string
   definitionOfShipped: string

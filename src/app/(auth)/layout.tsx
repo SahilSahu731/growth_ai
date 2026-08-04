@@ -13,32 +13,27 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <div className="landing-atmosphere relative min-h-screen overflow-x-clip px-3 py-4 sm:px-6 sm:py-6 lg:px-10 lg:py-8">
-      <div className="pointer-events-none absolute -left-24 top-24 h-64 w-64 rounded-full bg-[rgba(168,90,45,0.12)] blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 bottom-20 h-64 w-64 rounded-full bg-[rgba(232,210,187,0.28)] blur-3xl" />
+    <div className="landing-atmosphere auth-shell relative min-h-screen overflow-x-clip px-3 py-3 sm:px-5 sm:py-5 lg:px-7 lg:py-7">
+      <div className="ambient-orb pointer-events-none absolute -left-32 top-10 h-80 w-80 rounded-full bg-amber-200/10 blur-[110px]" />
+      <div className="ambient-orb pointer-events-none absolute -right-24 bottom-10 h-96 w-96 rounded-full bg-violet-400/10 blur-[130px] [animation-delay:1.5s]" />
 
-      <div className="relative z-10 mx-auto w-full max-w-[1340px]">
-        <header className="flex items-center justify-between rounded-2xl border border-black/10 bg-white/84 px-4 py-3 backdrop-blur sm:rounded-full sm:px-6">
-          <Link href="/" className="font-display text-xl tracking-tight text-(--landing-ink) sm:text-2xl">
-            GrowthAI
+      <div className="relative z-10 mx-auto w-full max-w-[1440px]">
+        <header className="flex items-center justify-between px-2 py-2 sm:px-4">
+          <Link href="/" className="font-display text-lg tracking-wide text-(--landing-ink) transition hover:opacity-70 sm:text-xl">
+            GROWTHAI
           </Link>
-          <Link href="/" className="text-xs text-(--landing-muted) underline-offset-4 hover:underline sm:text-sm">
-            Back to Home
+          <Link href="/" className="group flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-(--landing-muted) backdrop-blur transition hover:border-white/20 hover:bg-white/10 hover:text-white sm:text-sm">
+            <span className="transition group-hover:-translate-x-0.5">←</span> Back home
           </Link>
         </header>
 
-        <div className="mt-4 rounded-2xl border border-black/10 bg-white/70 px-4 py-3 lg:hidden">
-          <p className="text-[0.68rem] uppercase tracking-[0.18em] text-(--landing-muted)">Accountability for builders</p>
-          <p className="mt-1 text-sm leading-6 text-(--landing-muted)">
-            Commit to one thing, report what moved, and recover quickly when momentum breaks.
-          </p>
-        </div>
-
-        <div className="mt-5 grid gap-6 lg:mt-8 lg:grid-cols-[minmax(0,36rem)_minmax(0,1fr)] lg:gap-8">
-          <main className="order-1 mx-auto w-full max-w-[42rem]">{children}</main>
-          <div className="order-2 hidden lg:block">
+        <div className="mt-3 grid items-stretch gap-5 lg:grid-cols-[minmax(0,1.12fr)_minmax(28rem,.88fr)]">
+          <div className="hidden lg:block">
             <AuthShowcase />
           </div>
+          <main className="flex min-h-[calc(100vh-7rem)] w-full items-center justify-center py-4 lg:py-8">
+            <div className="w-full max-w-[34rem]">{children}</div>
+          </main>
         </div>
       </div>
     </div>

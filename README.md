@@ -1,27 +1,26 @@
 # GrowthAI
 
-GrowthAI is an accountability product for builders and indie hackers. A user commits to one concrete project, checks in with observable progress, receives concise evidence-grounded coaching, and builds a trustworthy history of actions, blockers, recovery, and shipped work.
+GrowthAI is a calm personal-growth system for the whole of life—not a project manager and not an average AI chat app. A person chooses one meaningful intention in health, career, relationships, learning, finances, creativity, wellbeing, or personal life; reflects on what changed; receives grounded guidance; and gradually understands the patterns that help or hinder them.
 
-## What is implemented
+## Product experience
 
-- Credentials, GitHub, and optional Google authentication with protected server routes.
-- Guided onboarding: commitment, definition of shipped, deadline, next action, coaching tone, timezone, and cadence.
-- Convex-backed projects, schedules, prompts, check-ins, evidence, streaks, project events, patterns, reviews, notifications, subscriptions, GitHub activity, public pages, and referrals.
-- AI accountability through Gemini with bounded structured output, minimal context, timeout handling, and a deterministic fallback.
-- Timezone-aware scheduling, idempotent prompt creation, email delivery through Resend, missed-check-in handling, and recovery-oriented streaks.
-- Evidence-backed patterns, editable weekly reviews, opt-in public progress, JSON export, and verified permanent account deletion.
-- Razorpay subscription checkout and signature-verified, idempotent webhooks.
-- GitHub OAuth plus signature-verified webhook normalization. Repository events remain supporting evidence and never replace a user check-in.
+- Guided onboarding for a life area, meaningful intention, reflection date, personal reason, definition of progress, and one small next step.
+- Short reflections with supportive, balanced, or direct guidance.
+- Timezone-aware prompts, reflection rhythms, missed-day recovery, and editable weekly reviews.
+- Evidence-backed pattern memory that distinguishes observations from interpretation.
+- Multiple intentions on paid plans, privacy-safe public growth pages, referrals, export, and verified deletion.
+- Optional GitHub activity for coding-related intentions; it is supporting evidence, never a universal measure of growth.
+- Gemini structured responses with deterministic fallback and explicit safeguards against shame, diagnosis, therapy impersonation, and high-stakes directives.
+
+The visual system is informed by the locally supplied Timmo reference: a light neutral canvas, floating pill navigation, expanded display type, editorial serif accents, subtle grid backgrounds, soft bordered cards, bento layouts, and restrained motion. GrowthAI retains its own identity and content.
 
 ## Stack
 
 - Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4
-- Convex as the application database
-- NextAuth v4 for session management
-- Gemini for optional coaching/reviews
-- Resend for transactional prompts
-- Razorpay for India-first billing
-- Vitest for domain and integration-boundary tests
+- Convex application database
+- NextAuth credentials, GitHub OAuth, and optional Google OAuth
+- Gemini, Resend, Razorpay, and optional GitHub App webhooks
+- Vitest domain and integration-boundary tests
 
 ## Local setup
 
@@ -32,23 +31,22 @@ npm run convex:dev
 npm run dev
 ```
 
-`convex dev` creates or links a deployment. Copy its URL and a server deployment key into `.env.local`. The deployment key is server-only and must never use a `NEXT_PUBLIC_` prefix.
-
-The app remains functional without Gemini: coaching and weekly reviews use deterministic fallbacks. Email, billing, GitHub App webhooks, and OAuth require their respective credentials.
+The app remains usable without Gemini through deterministic guidance. Email, billing, OAuth, and webhooks require their corresponding environment credentials.
 
 ## Verification
 
 ```bash
 npm run verify
+npm run build
 ```
 
-`verify` runs lint, TypeScript, and tests. Run the independent production compilation gate with `npm run build` (kept separate because Next.js build manages its generated route types).
+`verify` runs ESLint, TypeScript, and the test suite. The independent build command validates the production application and generated Next.js route types.
 
-## Scheduled jobs and webhooks
+## Operations
 
-- Call `GET /api/cron/check-ins` with `Authorization: Bearer $CRON_SECRET` at least every 5–15 minutes.
-- Configure Razorpay to send subscription events to `/api/webhooks/razorpay`.
-- Configure a GitHub App webhook at `/api/webhooks/github`; repository selections use the internal `projectId|owner/repository` mapping.
-- Keep all webhook secrets distinct across development, preview, and production.
+- Call `GET /api/cron/check-ins` with `Authorization: Bearer $CRON_SECRET` every 5–15 minutes.
+- Send Razorpay subscription events to `/api/webhooks/razorpay`.
+- Send GitHub App events to `/api/webhooks/github` only when optional developer evidence is enabled.
+- Use distinct secrets for development, preview, and production.
 
-See [roadmap.md](./roadmap.md) for the product plan and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for system boundaries and operating notes.
+See [roadmap.md](./roadmap.md) and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).

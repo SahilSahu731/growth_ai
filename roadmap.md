@@ -1,5 +1,7 @@
 # GrowthAI Production Roadmap
 
+> **Product direction update — August 2026:** GrowthAI is now a whole-life personal-growth system rather than a builder/project-shipping product. The reusable accountability, reflection, scheduling, memory, privacy, billing, and operations work below remains valid. In all user-facing implementation, “project” should be read as a private growth intention across health, career, relationships, learning, finances, creativity, wellbeing, or personal life. GitHub is optional evidence for the small subset of intentions involving software; it is not the product center.
+
 > **Product promise:** Tell GrowthAI what you are building, and it makes sure you do not quietly abandon it.
 
 This document is the implementation contract for turning the current repository into a production-grade accountability product for builders, indie hackers, solo founders, and developers. It incorporates the complete intent of the supplied MVP roadmap, but expands it into an executable product, engineering, AI, security, billing, operations, and launch plan tailored to this codebase.

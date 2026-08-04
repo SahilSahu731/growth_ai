@@ -1,9 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState } from "react"
+import { useActionState, useState } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
+import { ArrowRight, Eye, EyeOff } from "lucide-react"
 
 import { signupAction, type AuthActionState } from "@/app/(auth)/actions"
 import { OAuthButtons, type OAuthProviderAvailability } from "@/components/auth/oauth-buttons"
@@ -20,6 +21,7 @@ type SignupFormProps = {
 
 export function SignupForm({ oauthProviders, referralCode }: SignupFormProps) {
   const router = useRouter()
+  const [showPassword, setShowPassword] = useState(false)
 
   const [state, formAction, isPending] = useActionState(
     async (prevState: AuthActionState, formData: FormData) => {
@@ -59,14 +61,14 @@ export function SignupForm({ oauthProviders, referralCode }: SignupFormProps) {
       {referralCode ? <input type="hidden" name="referralCode" value={referralCode} /> : null}
       <OAuthButtons providers={oauthProviders} mode="signup" />
       <div className="relative flex items-center justify-center">
-        <div className="h-px w-full bg-black/10" />
-        <span className="absolute bg-white px-3 text-xs uppercase tracking-[0.15em] text-(--landing-muted)">
+        <div className="h-px w-full bg-white/10" />
+        <span className="absolute bg-[#111] px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-(--landing-muted)">
           or sign up with email
         </span>
       </div>
 
       <div className="space-y-2.5">
-        <Label htmlFor="name" className="text-sm text-(--landing-ink)">
+        <Label htmlFor="name" className="text-xs font-bold uppercase tracking-[.12em] text-(--landing-muted)">
           Name
         </Label>
         <Input
@@ -75,13 +77,13 @@ export function SignupForm({ oauthProviders, referralCode }: SignupFormProps) {
           type="text"
           placeholder="Your name"
           autoComplete="name"
-          className="h-12 rounded-xl border-black/15 bg-white px-4 text-sm"
+          className="auth-input h-13 rounded-2xl border-white/10 bg-white/5 px-4 text-sm placeholder:text-neutral-600"
           required
         />
       </div>
 
       <div className="space-y-2.5">
-        <Label htmlFor="email" className="text-sm text-(--landing-ink)">
+        <Label htmlFor="email" className="text-xs font-bold uppercase tracking-[.12em] text-(--landing-muted)">
           Email
         </Label>
         <Input
@@ -90,37 +92,34 @@ export function SignupForm({ oauthProviders, referralCode }: SignupFormProps) {
           type="email"
           placeholder="you@example.com"
           autoComplete="email"
-          className="h-12 rounded-xl border-black/15 bg-white px-4 text-sm"
+          className="auth-input h-13 rounded-2xl border-white/10 bg-white/5 px-4 text-sm placeholder:text-neutral-600"
           required
         />
       </div>
 
       <div className="space-y-2.5">
-        <Label htmlFor="password" className="text-sm text-(--landing-ink)">
+        <Label htmlFor="password" className="text-xs font-bold uppercase tracking-[.12em] text-(--landing-muted)">
           Password
         </Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          placeholder="Minimum 8 characters"
-          autoComplete="new-password"
-          className="h-12 rounded-xl border-black/15 bg-white px-4 text-sm"
-          required
-        />
+        <div className="relative">
+          <Input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="Minimum 8 characters" autoComplete="new-password" className="auth-input h-13 rounded-2xl border-white/10 bg-white/5 px-4 pr-12 text-sm placeholder:text-neutral-600" required />
+          <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 transition hover:text-white" aria-label={showPassword ? "Hide passwords" : "Show passwords"}>
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-2.5">
-        <Label htmlFor="confirmPassword" className="text-sm text-(--landing-ink)">
+        <Label htmlFor="confirmPassword" className="text-xs font-bold uppercase tracking-[.12em] text-(--landing-muted)">
           Confirm password
         </Label>
         <Input
           id="confirmPassword"
           name="confirmPassword"
-          type="password"
+          type={showPassword ? "text" : "password"}
           placeholder="Repeat your password"
           autoComplete="new-password"
-          className="h-12 rounded-xl border-black/15 bg-white px-4 text-sm"
+          className="auth-input h-13 rounded-2xl border-white/10 bg-white/5 px-4 text-sm placeholder:text-neutral-600"
           required
         />
       </div>
@@ -130,10 +129,10 @@ export function SignupForm({ oauthProviders, referralCode }: SignupFormProps) {
 
       <Button
         type="submit"
-        className="h-12 w-full rounded-full bg-(--landing-ink) text-sm text-(--landing-surface) hover:bg-(--landing-accent)"
+        className="group h-13 w-full rounded-2xl bg-(--landing-ink) text-sm font-bold text-(--landing-surface) transition hover:-translate-y-0.5 hover:bg-white"
         disabled={isPending}
       >
-        {isPending ? "Creating account..." : "Create account"}
+        {isPending ? "Creating account..." : <span className="flex items-center gap-2">Begin my growth <ArrowRight className="size-4 transition group-hover:translate-x-1" /></span>}
       </Button>
 
       <p className="text-center text-sm text-(--landing-muted)">

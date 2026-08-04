@@ -1,53 +1,67 @@
 import Link from "next/link"
 import { getServerSession } from "next-auth"
-import { ArrowRight, Brain, CheckCircle2, Flame, GitBranch as Github, ShieldCheck, Target } from "lucide-react"
+import { ArrowUpRight, Brain, Check, ChevronRight, Compass, Heart, Leaf, LineChart, RefreshCcw, ShieldCheck, Sparkles, Target } from "lucide-react"
 
 import { authOptions } from "@/auth"
-import { Button } from "@/components/ui/button"
+import { DynamicGrowthShowcase } from "@/components/landing/dynamic-growth-showcase"
 
-const features = [
-  { icon: Target, title: "One real commitment", text: "Define what shipped means, choose a deadline, and protect one concrete next action." },
-  { icon: Brain, title: "Memory that earns trust", text: "GrowthAI references repeated blockers and carried actions only when your history supports it." },
-  { icon: Flame, title: "Recovery, not guilt", text: "Missed check-ins trigger a smaller restart plan—not generic reminders or shame-heavy streaks." },
-]
+const lifeAreas = ["Health", "Career", "Relationships", "Learning", "Finances", "Creativity", "Wellbeing"]
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions)
   const startHref = session?.user ? "/dashboard" : "/signup"
-  return <main className="min-h-screen overflow-hidden bg-[#090b0a] text-white">
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#090b0a]/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5 font-semibold"><span className="flex size-8 items-center justify-center rounded-xl bg-emerald-400 text-zinc-950">G</span><span>GrowthAI</span></Link>
-        <nav className="hidden gap-6 text-sm text-zinc-400 md:flex"><Link href="#how" className="hover:text-white">How it works</Link><Link href="#principles" className="hover:text-white">Why it works</Link><Link href="/pricing" className="hover:text-white">Pricing</Link></nav>
-        <div className="flex gap-2"><Button asChild variant="ghost" className="rounded-full text-zinc-300"><Link href="/login">Log in</Link></Button><Button asChild className="rounded-full bg-emerald-400 text-zinc-950 hover:bg-emerald-300"><Link href={startHref}>{session?.user ? "Open cockpit" : "Start building"}</Link></Button></div>
-      </div>
-    </header>
+  return <main className="min-h-screen overflow-x-hidden bg-[#fafafa] text-neutral-950">
+    <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      <header className="sticky top-4 z-50">
+        <nav className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between rounded-full border border-neutral-200/80 bg-white/85 px-4 shadow-[0_8px_30px_rgba(0,0,0,.025)] backdrop-blur-md sm:px-6">
+          <Link href="/" className="font-display text-base tracking-wide transition hover:opacity-70">GrowthAI</Link>
+          <div className="hidden items-center gap-7 text-[11px] font-bold uppercase tracking-[.14em] text-neutral-500 md:flex"><a href="#system" className="hover:text-neutral-950">The system</a><a href="#inside" className="hover:text-neutral-950">Inside</a><Link href="/pricing" className="hover:text-neutral-950">Pricing</Link></div>
+          <div className="flex items-center gap-2"><Link href={session?.user ? "/dashboard" : "/login"} className="hidden rounded-full border border-neutral-200 bg-white px-5 py-2 text-xs font-bold text-neutral-800 transition hover:-translate-y-0.5 hover:bg-neutral-50 sm:block">{session?.user ? "Dashboard" : "Log in"}</Link><Link href={startHref} className="group flex items-center gap-1.5 rounded-full bg-neutral-950 px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-neutral-800">{session?.user ? "Continue" : "Start growing"}<ArrowUpRight className="size-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></Link></div>
+        </nav>
+      </header>
 
-    <section className="relative mx-auto grid max-w-7xl gap-14 px-4 pb-24 pt-20 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:pb-32 lg:pt-28">
-      <div className="absolute left-1/3 top-0 -z-0 size-[30rem] rounded-full bg-emerald-500/10 blur-[120px]" />
-      <div className="relative z-10">
-        <p className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-300"><span className="size-1.5 rounded-full bg-emerald-300" />Accountability for people who build</p>
-        <h1 className="mt-7 max-w-3xl text-5xl font-semibold leading-[1.02] tracking-[-0.045em] sm:text-6xl lg:text-7xl">Do not let another project quietly disappear.</h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">Tell GrowthAI what you are shipping. It checks in, remembers the patterns behind your stalls, and helps you complete the next meaningful action.</p>
-        <div className="mt-9 flex flex-wrap gap-3"><Button asChild size="lg" className="h-12 rounded-full bg-emerald-400 px-7 font-semibold text-zinc-950 hover:bg-emerald-300"><Link href={startHref}>Make one commitment <ArrowRight className="size-4" /></Link></Button><Button asChild size="lg" variant="outline" className="h-12 rounded-full border-white/15 bg-white/5"><Link href="#how">See the loop</Link></Button></div>
-        <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-500"><span className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-400" />Free for one active project</span><span className="flex items-center gap-2"><ShieldCheck className="size-4 text-emerald-400" />Private by default</span><span className="flex items-center gap-2"><Github className="size-4 text-emerald-400" />Built for developers</span></div>
-      </div>
+      <section className="growth-grid relative flex min-h-[calc(100vh-72px)] flex-col items-center justify-center overflow-hidden pb-12 pt-16 text-center sm:pt-20">
+        <div className="ambient-orb absolute left-1/2 top-20 -z-0 h-96 w-3/4 -translate-x-1/2 rounded-full bg-neutral-200/25 blur-3xl" />
+        <div className="relative z-10 flex items-center gap-2 rounded-full border border-neutral-200 bg-white/85 px-3 py-1.5 text-xs font-bold text-neutral-600 shadow-sm backdrop-blur"><span className="flex size-6 items-center justify-center rounded-full bg-neutral-950 text-[10px] text-white">G</span><span>Personal growth that remembers the whole story</span></div>
+        <h1 className="relative z-10 mt-7 max-w-5xl text-[clamp(2.8rem,7.2vw,6.4rem)] font-black leading-[.98] tracking-[-.055em] text-neutral-950">Build a life that feels<br /><span className="font-editorial block text-[1.08em] font-normal italic tracking-[-.025em] text-neutral-400 sm:inline">more like your own.</span></h1>
+        <p className="relative z-10 mt-7 max-w-2xl px-3 text-base font-medium leading-8 text-neutral-500 sm:text-lg">GrowthAI helps you choose one meaningful direction, take a small honest step, reflect without judgment, and learn what actually helps you grow—across every part of life.</p>
+        <div className="relative z-10 mt-9 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row"><Link href={startHref} className="group flex h-12 w-full max-w-64 items-center justify-center gap-2 rounded-full bg-neutral-950 px-6 text-sm font-semibold text-white shadow-lg shadow-neutral-950/10 transition hover:-translate-y-0.5 hover:bg-neutral-800 sm:w-auto">Begin with one intention<ArrowUpRight className="size-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></Link><a href="#inside" className="group flex h-12 w-full max-w-64 items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white/80 px-6 text-sm font-semibold text-neutral-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-white sm:w-auto">See how it feels<ChevronRight className="size-4 transition group-hover:translate-x-0.5" /></a></div>
+        <div className="relative z-10 mt-7 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-semibold text-neutral-500"><span className="flex items-center gap-1.5"><Check className="size-3.5" />One active intention free</span><span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5" />Private by default</span><span className="flex items-center gap-1.5"><Heart className="size-3.5" />No shame or hustle culture</span></div>
 
-      <div className="relative z-10 rounded-[2rem] border border-white/10 bg-zinc-900/80 p-4 shadow-2xl shadow-emerald-950/40 sm:p-6">
-        <div className="flex items-center justify-between border-b border-white/10 pb-4"><div><p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Today’s check-in</p><p className="mt-1 font-medium">Launch Forge</p></div><span className="rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-300">12 days to ship</span></div>
-        <div className="mt-5 rounded-2xl bg-black/30 p-4"><p className="text-sm text-zinc-300">“I researched auth providers again, but I did not implement the callback.”</p></div>
-        <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">GrowthAI</p><p className="mt-2 text-sm leading-6 text-zinc-200">This is the third check-in where auth research replaced implementation. Stop comparing providers. Open the callback route and make one failing test pass.</p><p className="mt-3 text-sm font-medium text-white">Can you finish that in 30 minutes?</p></div>
-        <div className="mt-4 grid grid-cols-3 gap-3">{[["7", "day streak"], ["3", "real ships"], ["1", "active focus"]].map(([value,label]) => <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-center"><p className="text-2xl font-semibold">{value}</p><p className="mt-1 text-xs text-zinc-500">{label}</p></div>)}</div>
-      </div>
-    </section>
+        <div id="inside" className="relative z-10 mt-16 w-full px-1 sm:px-4">
+          <DynamicGrowthShowcase />
+        </div>
+      </section>
 
-    <section id="how" className="border-y border-white/10 bg-white/[0.02] py-24"><div className="mx-auto max-w-7xl px-4 sm:px-6"><p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-400">The accountability loop</p><h2 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight sm:text-5xl">Less conversation. More observable movement.</h2><div className="mt-12 grid gap-4 md:grid-cols-4">{[
-      ["01", "Commit", "One project, one deadline, one definition of shipped."], ["02", "Check in", "Say what changed. Add evidence when it exists."], ["03", "Get challenged", "One grounded observation and one sharp question."], ["04", "Recover", "When momentum drops, restart with a smaller action."],
-    ].map(([number,title,text]) => <article key={number} className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5"><span className="text-xs font-mono text-emerald-400">{number}</span><h3 className="mt-8 text-xl font-semibold">{title}</h3><p className="mt-3 text-sm leading-6 text-zinc-400">{text}</p></article>)}</div></div></section>
+      <section className="grid grid-cols-1 gap-5 py-12 sm:grid-cols-3">
+        {[{ value: "1", label: "meaningful focus at a time" }, { value: "5 min", label: "for an honest daily reflection" }, { value: "∞", label: "ways a good life can look" }].map(item => <div key={item.label} className="motion-card rounded-2xl border border-neutral-200 bg-white/85 p-6 text-center shadow-sm"><p className="font-editorial text-5xl italic text-neutral-950 sm:text-6xl">{item.value}</p><p className="mt-2 text-[11px] font-bold uppercase tracking-[.14em] text-neutral-400">{item.label}</p></div>)}
+      </section>
 
-    <section id="principles" className="mx-auto max-w-7xl px-4 py-24 sm:px-6"><div className="grid gap-5 md:grid-cols-3">{features.map(({icon:Icon,title,text}) => <article key={title} className="rounded-3xl border border-white/10 p-6"><span className="flex size-11 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300"><Icon className="size-5" /></span><h3 className="mt-6 text-xl font-semibold">{title}</h3><p className="mt-3 text-sm leading-7 text-zinc-400">{text}</p></article>)}</div></section>
+      <section id="system" className="py-16">
+        <div className="mx-auto mb-11 max-w-3xl text-center"><span className="rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[.16em] text-neutral-500">A calmer growth system</span><h2 className="mt-5 text-4xl font-black leading-tight tracking-[-.04em] sm:text-6xl">Growth is more than goals.<br /><span className="font-editorial font-normal italic text-neutral-400">It is noticing what changes you.</span></h2></div>
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <Bento icon={Compass} eyebrow="Direction" title="Choose what matters now" text="Name the life area, why it matters, and what meaningful progress would look like—without turning your life into a productivity contest." className="lg:col-span-2" visual={<div className="flex flex-wrap gap-2">{lifeAreas.map((area, index) => <span key={area} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${index === 3 ? "border-neutral-900 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-500"}`}>{area}</span>)}</div>} />
+          <Bento icon={RefreshCcw} eyebrow="Recovery" title="Restart gently" text="A missed day becomes a smaller next step, not proof that you failed." visual={<div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Today’s reset</p><p className="mt-2 text-sm font-semibold">Walk outside for ten minutes.</p><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-200"><div className="h-full w-2/3 rounded-full bg-neutral-950" /></div></div>} />
+          <Bento icon={Brain} eyebrow="Self-knowledge" title="See your real patterns" text="GrowthAI points to repeated blockers and helpful conditions only when your own reflections support them." visual={<div className="space-y-2">{["Energy is better after morning movement", "Big steps are getting postponed", "Sunday planning is helping"].map((text, index) => <div key={text} className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3"><span className={`size-2 rounded-full ${index === 1 ? "bg-amber-400" : "bg-neutral-900"}`} /><p className="text-xs font-semibold text-neutral-600">{text}</p></div>)}</div>} />
+          <Bento icon={LineChart} eyebrow="Reflection" title="Understand the week" text="Weekly reviews separate what happened from what it might mean, then help you choose the next humane focus." className="lg:col-span-2" visual={<MiniWeek />} />
+        </div>
+      </section>
 
-    <section className="mx-auto max-w-5xl px-4 pb-24 text-center sm:px-6"><div className="rounded-[2rem] border border-emerald-400/20 bg-emerald-400/10 px-6 py-14"><h2 className="text-3xl font-semibold sm:text-5xl">What are you refusing to abandon?</h2><p className="mx-auto mt-4 max-w-2xl text-zinc-300">Make the commitment. GrowthAI will keep the next action visible when motivation stops doing the work.</p><Button asChild size="lg" className="mt-8 h-12 rounded-full bg-emerald-400 px-7 text-zinc-950 hover:bg-emerald-300"><Link href={startHref}>Start free <ArrowRight className="size-4" /></Link></Button></div></section>
-    <footer className="border-t border-white/10 py-8"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-6"><p>© 2026 GrowthAI. Built for consistency, not screen time.</p><div className="flex gap-5"><Link href="/pricing">Pricing</Link><a href="mailto:support@growthai.app">Support</a></div></div></footer>
+      <section className="grid items-center gap-6 py-14 lg:grid-cols-2">
+        <div className="rounded-3xl border border-neutral-200 bg-white p-7 shadow-sm sm:p-9"><span className="rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[.16em] text-neutral-500">A better conversation with yourself</span><h2 className="mt-6 text-4xl font-black leading-[1.05] tracking-[-.04em]">Honest enough to help.<br /><span className="font-editorial font-normal italic text-neutral-400">Kind enough to return to.</span></h2><p className="mt-5 text-sm font-medium leading-7 text-neutral-500">The AI does not diagnose you, flatter you, or turn every day into a score. It uses your own words to offer one grounded observation and one useful question.</p><div className="mt-7 grid gap-3 sm:grid-cols-2">{["Supportive, balanced, or direct tone", "Your private history stays private", "Feedback teaches what was useful", "Deterministic fallback when AI is unavailable"].map(text => <div key={text} className="flex gap-2 rounded-xl border border-neutral-200 bg-neutral-50/60 p-3 text-xs font-semibold text-neutral-700"><Check className="mt-0.5 size-3.5 shrink-0" />{text}</div>)}</div></div>
+        <div className="rounded-3xl border border-neutral-200 bg-neutral-100/60 p-3 shadow-sm sm:p-5"><div className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400">Evening reflection · Wellbeing</p><p className="mt-4 text-sm leading-7 text-neutral-700">“I wanted to call my sister, but work ran late again. I kept thinking I needed a long conversation, so I did nothing.”</p><div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><div className="flex items-center gap-2"><Sparkles className="size-4" /><p className="text-xs font-bold">GrowthAI</p></div><p className="mt-3 text-sm leading-7 text-neutral-600">The size of the ideal conversation may be stopping the small connection you actually want. Try sending a voice note instead of waiting for the perfect hour.</p><p className="mt-3 text-sm font-bold text-neutral-900">Would a two-minute voice note feel honest enough for today?</p></div></div></div>
+      </section>
+
+      <section className="py-16 text-center"><div className="mx-auto max-w-4xl rounded-3xl border border-neutral-200 bg-white px-6 py-14 shadow-sm"><Leaf className="mx-auto size-7" /><h2 className="mt-6 text-4xl font-black tracking-[-.04em] sm:text-6xl">What would feel meaningfully better?</h2><p className="mx-auto mt-5 max-w-xl text-base leading-8 text-neutral-500">Start there. Choose one small direction, and let GrowthAI help you keep returning to it.</p><Link href={startHref} className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-neutral-950 px-7 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-neutral-800">Start growing free<ArrowUpRight className="size-4" /></Link></div></section>
+      <footer className="flex flex-col gap-3 border-t border-neutral-200 py-8 text-xs font-semibold text-neutral-500 sm:flex-row sm:items-center sm:justify-between"><p>© 2026 GrowthAI · A quieter way to change.</p><div className="flex gap-5"><Link href="/pricing">Pricing</Link><a href="mailto:support@growthai.app">Support</a></div></footer>
+    </div>
   </main>
+}
+
+function Bento({ icon: Icon, eyebrow, title, text, visual, className = "" }: { icon: typeof Target; eyebrow: string; title: string; text: string; visual: React.ReactNode; className?: string }) {
+  return <article className={`motion-card flex min-h-80 flex-col justify-between rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm ${className}`}><div><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400"><Icon className="size-4 text-neutral-900" />{eyebrow}</div><h3 className="mt-5 text-2xl font-black tracking-[-.025em]">{title}</h3><p className="mt-3 max-w-xl text-sm font-medium leading-7 text-neutral-500">{text}</p></div><div className="mt-7">{visual}</div></article>
+}
+
+function MiniWeek() {
+  return <div className="rounded-2xl border border-neutral-200 bg-neutral-50/60 p-4"><div className="flex h-28 items-end gap-2">{[32, 56, 44, 76, 62, 88, 68].map((height, index) => <div key={index} className="flex flex-1 flex-col items-center gap-2"><div className="flex h-24 w-full items-end"><div className="w-full rounded-t bg-neutral-900" style={{ height: `${height}%`, opacity: .55 + index * .06 }} /></div><span className="text-[9px] font-bold text-neutral-400">{"MTWTFSS"[index]}</span></div>)}</div></div>
 }

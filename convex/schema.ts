@@ -130,6 +130,7 @@ export default defineSchema({
     legacyId: v.string(),
     userId: v.string(),
     name: v.string(),
+    lifeArea: v.optional(v.union(v.literal("health"), v.literal("career"), v.literal("relationships"), v.literal("learning"), v.literal("finances"), v.literal("creativity"), v.literal("wellbeing"), v.literal("personal"))),
     description: v.string(),
     whyItMatters: v.string(),
     definitionOfShipped: v.string(),

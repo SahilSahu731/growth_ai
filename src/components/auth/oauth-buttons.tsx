@@ -74,7 +74,7 @@ export function OAuthButtons({ providers, mode, className }: OAuthButtonsProps) 
             key={providerId}
             type="button"
             variant="outline"
-            className="h-12 w-full justify-center gap-2.5 rounded-full border-black/15 bg-white px-5 text-sm text-(--landing-ink) hover:bg-(--landing-surface)"
+            className="h-12 w-full justify-center gap-2.5 rounded-2xl border-white/10 bg-white/5 px-5 text-sm font-semibold text-(--landing-ink) transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10"
             disabled={pendingProvider !== null || !isEnabled}
             onClick={() => {
               if (!isEnabled) return

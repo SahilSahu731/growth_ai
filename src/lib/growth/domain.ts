@@ -76,7 +76,7 @@ export function nextCheckInAt(input: {
 export function deriveClassification(state: CheckInState, response: string): CheckInClassification {
   if (state === "blocked") return "real_blocker"
   if (state === "avoiding" || state === "pause_request") return "avoidance_signal"
-  const concreteSignals = /(shipped|deployed|implemented|fixed|tested|published|launched|merged|built|interviewed|sold|wrote|designed)/i
+  const concreteSignals = /(walked|exercised|trained|stretched|called|spoke|listened|apologized|saved|budgeted|paid|read|studied|practiced|learned|slept|rested|meditated|journaled|cooked|applied|asked|attended|created|finished|started|wrote|designed|built|shipped|published|launched|implemented|fixed|tested)/i
   if (concreteSignals.test(response)) return "meaningful_progress"
   if (response.trim().length < 30) return "unclear"
   return "maintenance"
