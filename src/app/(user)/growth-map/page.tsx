@@ -7,6 +7,7 @@ import { authOptions } from "@/auth"
 import { ensureOperatorConversation, getOperatorWorkspace } from "@/lib/data/operator"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Growth map" }
 
 export default async function GrowthMapPage() {
   const session = await getServerSession(authOptions)

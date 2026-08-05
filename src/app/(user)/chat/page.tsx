@@ -6,6 +6,7 @@ import { ChatExperience } from "@/components/operator/chat-experience"
 import { createOperatorConversation, ensureOperatorConversation, getOperatorWeeklyActivity, getOperatorWorkspace } from "@/lib/data/operator"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Chat" }
 
 export default async function ChatPage({ searchParams }: { searchParams: Promise<{ new?: string; conversation?: string }> }) {
   const session = await getServerSession(authOptions)

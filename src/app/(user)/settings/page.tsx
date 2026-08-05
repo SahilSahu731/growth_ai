@@ -7,6 +7,8 @@ import { DangerZone } from "@/components/growth/danger-zone"
 import { AccountPreferencesForm } from "@/components/operator/account-preferences-form"
 import { getAccountOverview } from "@/lib/data/account"
 
+export const metadata = { title: "Settings" }
+
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) redirect("/login")

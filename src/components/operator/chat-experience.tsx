@@ -10,6 +10,7 @@ import {
   type ChatActionState,
   type OperatorFormState,
 } from "@/app/(user)/chat/actions"
+import { BrandLogo } from "@/components/brand-logo"
 import { EditableTaskCard } from "@/components/operator/editable-task-card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import type { OperatorMessage, OperatorTask, OperatorWeeklyActivity, OperatorWorkspace } from "@/lib/operator/types"
@@ -42,7 +43,7 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/[.08] px-5 sm:px-7">
           <div className="flex items-center gap-3">
             <SidebarTrigger className="-ml-2 size-9 rounded-lg text-white/50 hover:bg-white/[.06] hover:text-white md:hidden" />
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground">G</span>
+            <BrandLogo className="size-8" priority />
             <div>
               <p className="text-sm font-semibold text-white">GrowthAI</p>
               <p className="text-[10px] capitalize tracking-wide text-white/35">{workspace.conversation.state.replaceAll("_", " ")}</p>
@@ -202,7 +203,7 @@ function Message({
 
   return (
     <article className="mb-10 grid grid-cols-[2rem_minmax(0,1fr)] gap-3 sm:grid-cols-[2.25rem_minmax(0,1fr)] sm:gap-4">
-      <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-[10px] font-black text-primary-foreground sm:size-9">G</span>
+      <BrandLogo className="size-8 sm:size-9" />
       <div className="min-w-0 pt-1">
         <p className="whitespace-pre-wrap text-sm leading-7 text-white/80">{message.content}</p>
 
@@ -306,7 +307,7 @@ function TaskPanel({ tasks, goals }: { tasks: OperatorTask[]; goals: OperatorWor
 function Thinking() {
   return (
     <div className="mb-10 grid grid-cols-[2rem_minmax(0,1fr)] gap-3 sm:grid-cols-[2.25rem_minmax(0,1fr)] sm:gap-4">
-      <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-[10px] font-black text-primary-foreground sm:size-9">G</span>
+      <BrandLogo className="size-8 sm:size-9" />
       <div className="flex items-center gap-1.5 pt-3"><span className="size-1.5 animate-pulse rounded-full bg-white/30" /><span className="size-1.5 animate-pulse rounded-full bg-white/30 [animation-delay:120ms]" /><span className="size-1.5 animate-pulse rounded-full bg-white/30 [animation-delay:240ms]" /></div>
     </div>
   )

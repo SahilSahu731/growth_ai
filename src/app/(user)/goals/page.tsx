@@ -6,6 +6,7 @@ import { GoalManager } from "@/components/operator/goal-manager"
 import { ensureOperatorConversation, getOperatorWorkspace } from "@/lib/data/operator"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Goals" }
 
 export default async function GoalsPage() {
   const session = await getServerSession(authOptions)

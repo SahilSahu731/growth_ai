@@ -17,6 +17,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { BrandLogo } from "@/components/brand-logo"
 import { Button } from "@/components/ui/button"
 import {
   Sidebar,
@@ -113,9 +114,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
                 href="/chat"
                 className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 font-display text-sm text-neutral-950 hover:bg-neutral-100 group-data-[collapsible=icon]:hidden"
               >
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-neutral-950 text-xs font-semibold text-white">
-                  G
-                </span>
+                <BrandLogo className="size-6" priority />
                 <span className="truncate">GrowthAI</span>
               </Link>
             </div>

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { ArrowUpRight, Brain, Check, ChevronRight, Compass, Heart, Leaf, LineChart, RefreshCcw, ShieldCheck, Sparkles, Target } from "lucide-react"
 
 import { authOptions } from "@/auth"
+import { BrandLogo } from "@/components/brand-logo"
 import { DynamicGrowthShowcase } from "@/components/landing/dynamic-growth-showcase"
 
 const lifeAreas = ["Health", "Career", "Relationships", "Learning", "Finances", "Creativity", "Wellbeing"]
@@ -14,7 +15,7 @@ export default async function HomePage() {
     <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <header className="sticky top-4 z-50">
         <nav className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between rounded-full border border-neutral-200/80 bg-white/85 px-4 shadow-[0_8px_30px_rgba(0,0,0,.025)] backdrop-blur-md sm:px-6">
-          <Link href="/" className="font-display text-base tracking-wide transition hover:opacity-70">GrowthAI</Link>
+          <Link href="/" className="flex items-center gap-2 font-display text-base tracking-wide transition hover:opacity-70"><BrandLogo className="size-8" priority />GrowthAI</Link>
           <div className="hidden items-center gap-7 text-[11px] font-bold uppercase tracking-[.14em] text-neutral-500 md:flex"><a href="#system" className="hover:text-neutral-950">The system</a><a href="#inside" className="hover:text-neutral-950">Inside</a><Link href="/pricing" className="hover:text-neutral-950">Pricing</Link></div>
           <div className="flex items-center gap-2"><Link href={session?.user ? "/dashboard" : "/login"} className="hidden rounded-full border border-neutral-200 bg-white px-5 py-2 text-xs font-bold text-neutral-800 transition hover:-translate-y-0.5 hover:bg-neutral-50 sm:block">{session?.user ? "Dashboard" : "Log in"}</Link><Link href={startHref} className="group flex items-center gap-1.5 rounded-full bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/10 transition hover:-translate-y-0.5 hover:bg-primary/85">{session?.user ? "Continue" : "Start growing"}<ArrowUpRight className="size-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></Link></div>
         </nav>
@@ -22,7 +23,7 @@ export default async function HomePage() {
 
       <section className="growth-grid relative flex min-h-[calc(100vh-72px)] flex-col items-center justify-center overflow-hidden pb-12 pt-16 text-center sm:pt-20">
         <div className="ambient-orb absolute left-1/2 top-20 -z-0 h-96 w-3/4 -translate-x-1/2 rounded-full bg-neutral-200/25 blur-3xl" />
-        <div className="relative z-10 flex items-center gap-2 rounded-full border border-neutral-200 bg-white/85 px-3 py-1.5 text-xs font-bold text-neutral-600 shadow-sm backdrop-blur"><span className="flex size-6 items-center justify-center rounded-full bg-neutral-950 text-[10px] text-white">G</span><span>Personal growth that remembers the whole story</span></div>
+        <div className="relative z-10 flex items-center gap-2 rounded-full border border-neutral-200 bg-white/85 px-3 py-1.5 text-xs font-bold text-neutral-600 shadow-sm backdrop-blur"><BrandLogo className="size-6 rounded-full" /><span>Personal growth that remembers the whole story</span></div>
         <h1 className="relative z-10 mt-7 max-w-5xl text-[clamp(2.8rem,7.2vw,6.4rem)] font-black leading-[.98] tracking-[-.055em] text-neutral-950">Build a life that feels<br /><span className="font-editorial block text-[1.08em] font-normal italic tracking-[-.025em] text-neutral-400 sm:inline">more like your own.</span></h1>
         <p className="relative z-10 mt-7 max-w-2xl px-3 text-base font-medium leading-8 text-neutral-500 sm:text-lg">GrowthAI helps you choose one meaningful direction, take a small honest step, reflect without judgment, and learn what actually helps you grow—across every part of life.</p>
         <div className="relative z-10 mt-9 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row"><Link href={startHref} className="group flex h-12 w-full max-w-64 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition hover:-translate-y-0.5 hover:bg-primary/85 sm:w-auto">Begin with one intention<ArrowUpRight className="size-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></Link><a href="#inside" className="group flex h-12 w-full max-w-64 items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white/80 px-6 text-sm font-semibold text-neutral-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-white sm:w-auto">See how it feels<ChevronRight className="size-4 transition group-hover:translate-x-0.5" /></a></div>

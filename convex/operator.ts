@@ -2,6 +2,7 @@
 import { mutationGeneric as mutation, queryGeneric as query } from "convex/server"
 import { v } from "convex/values"
 import { requireServer } from "./lib/serverAuth"
+import { conversationTitle } from "./lib/conversationTitle"
 
 const conversationState = v.union(
   v.literal("discovery"),
@@ -235,7 +236,7 @@ export const appendExchange = mutation({
       .take(3)
     await ctx.db.patch(conversation._id, {
       state: args.assistant.state,
-      ...(messageCount.length <= 2 ? { title: args.userMessage.slice(0, 64) } : {}),
+      ...(messageCount.length <= 2 ? { title: conversationTitle(args.userMessage) } : {}),
       updatedAt: timestamp,
     })
     return clean(await ctx.db.get(assistantDocumentId))

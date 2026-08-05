@@ -7,6 +7,7 @@ import { authOptions } from "@/auth"
 import { ensureOperatorConversation, getOperatorWeeklyActivity, getOperatorWorkspace } from "@/lib/data/operator"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Weekly report" }
 
 export default async function WeeklyReportPage() {
   const session = await getServerSession(authOptions)

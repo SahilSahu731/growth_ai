@@ -9,6 +9,7 @@ import { ensureOperatorConversation, getOperatorWorkspace } from "@/lib/data/ope
 import type { OperatorTask } from "@/lib/operator/types"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Tasks" }
 
 export default async function TasksPage() {
   const session = await getServerSession(authOptions)

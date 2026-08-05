@@ -2,7 +2,7 @@ import Link from "next/link"
 import { AlertTriangle, ArrowLeft, Database, RotateCcw } from "lucide-react"
 
 export const dynamic = "force-dynamic"
-export const metadata = { title: "Sign-in problem | GrowthAI" }
+export const metadata = { title: "Sign-in problem", robots: { index: false, follow: false } }
 
 export default async function AuthErrorPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams

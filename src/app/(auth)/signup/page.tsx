@@ -1,8 +1,11 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 import { LockKeyhole } from "lucide-react"
 
 import { GoogleAuthButton } from "@/components/auth/google-auth-button"
 import { getOAuthProviderAvailability } from "@/lib/oauth-config"
+
+export const metadata: Metadata = { title: "Sign up", description: "Create your private GrowthAI workspace and start growing with clarity." }
 
 export const dynamic = "force-dynamic"
 
