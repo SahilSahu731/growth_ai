@@ -67,7 +67,7 @@ export function EditableTaskCard({ task, goals, compact = false }: { task: Opera
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`Edit ${task.title}`}
-            className={cn("rounded-md p-1 transition", compact ? "text-white/25 hover:bg-white/[.06] hover:text-white" : "text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900")}
+            className={cn("rounded-md p-1 transition", compact ? "text-white/25 hover:bg-white/[.06] hover:text-white" : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-900")}
           >
             <Pencil className="size-3.5" />
           </button>

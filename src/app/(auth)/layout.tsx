@@ -31,8 +31,8 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       <div className="auth-grain pointer-events-none absolute inset-0 opacity-[.1] mix-blend-soft-light" />
 
       <div className="relative z-10 grid min-h-screen lg:grid-cols-12">
-        <section className="relative hidden min-h-screen flex-col justify-between border-r border-white/[.08] p-10 lg:col-span-7 lg:flex xl:p-12">
-          <Link href="/" className="font-display flex w-fit items-center gap-2 text-base tracking-[.1em] text-white transition hover:text-[#72e7ff]"><BrandLogo className="size-9" priority />GROWTHAI</Link>
+        <section className="relative hidden min-h-screen flex-col justify-between border-r border-white/8 p-10 lg:col-span-7 lg:flex xl:p-12">
+          <Link href="/" className="font-display flex w-fit items-center gap-2 text-base tracking-widest text-white transition hover:text-[#72e7ff]"><BrandLogo className="size-9" priority />GROWTHAI</Link>
 
           <div className="mx-auto max-w-2xl text-center">
             <p className="font-editorial text-[clamp(2.75rem,4.8vw,5.25rem)] font-normal italic leading-[.96] tracking-[-.035em] text-white/90">“A good life is noticed,<br />chosen, and practiced.”</p>
@@ -73,10 +73,10 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           </div>
         </section>
 
-        <section className="relative flex min-h-screen flex-col overflow-hidden bg-[#070a0c]/90 p-6 backdrop-blur-2xl lg:col-span-5 lg:bg-[#070a0c]/[.97] sm:p-10 xl:p-14">
-          <div className="pointer-events-none absolute -right-32 top-1/3 size-72 rounded-full bg-[#72e7ff]/[.055] blur-[90px]" />
+        <section className="relative flex min-h-screen flex-col overflow-hidden bg-[#070a0c]/90 p-6 backdrop-blur-2xl lg:col-span-5 lg:bg-[#070a0c]/97 sm:p-10 xl:p-14">
+          <div className="pointer-events-none absolute -right-32 top-1/3 size-72 rounded-full bg-[#72e7ff]/5.5 blur-[90px]" />
           <div className="flex items-center justify-between">
-            <Link href="/" className="font-display flex items-center gap-2 text-sm tracking-[.1em] text-white lg:hidden"><BrandLogo className="size-8" priority />GROWTHAI</Link>
+            <Link href="/" className="font-display flex items-center gap-2 text-sm tracking-widest text-white lg:hidden"><BrandLogo className="size-8" priority />GROWTHAI</Link>
             <Link href="/" className="group ml-auto flex items-center gap-2 text-xs font-medium text-white/40 transition hover:text-white"><ArrowLeft className="size-3.5 transition group-hover:-translate-x-0.5" />Back</Link>
           </div>
           <main className="my-auto flex w-full justify-center py-14">{children}</main>

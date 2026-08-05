@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import "./globals.css"
 
-const siteUrl = new URL(process.env.NEXT_PUBLIC_APP_URL?.startsWith("http") ? process.env.NEXT_PUBLIC_APP_URL : "https://growthai.app")
+const siteUrl = new URL(process.env.NEXT_PUBLIC_APP_URL?.startsWith("http") ? process.env.NEXT_PUBLIC_APP_URL : "https://growth.ai")
 const description = "GrowthAI is a private AI growth coach that turns honest conversations into clear goals, focused tasks, and useful weekly reflection."
 
 export const metadata: Metadata = {
@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   category: "productivity",
   alternates: { canonical: "/" },
   icons: {
-    icon: [{ url: "/logo.png", type: "image/png", sizes: "1024x1024" }],
-    shortcut: "/logo.png",
-    apple: [{ url: "/logo.png", sizes: "1024x1024", type: "image/png" }],
+    icon: [{ url: "/favicon.png?v=2", type: "image/png", sizes: "1254x1254" }],
+    shortcut: "/favicon.png?v=2",
+    apple: [{ url: "/favicon.png?v=2", sizes: "1254x1254", type: "image/png" }],
   },
   manifest: "/manifest.webmanifest",
   openGraph: {

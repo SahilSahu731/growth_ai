@@ -73,7 +73,7 @@ function GoalCard({ goal, taskCount }: { goal: OperatorGoal; taskCount: number }
       <article className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <span className="flex size-9 items-center justify-center rounded-xl bg-primary/[.1] text-primary"><Target className="size-4" /></span>
-          <button type="button" onClick={() => setOpen(true)} className="rounded-lg p-2 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-900"><Pencil className="size-4" /></button>
+          <button type="button" onClick={() => setOpen(true)} className="rounded-lg p-2 text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-900"><Pencil className="size-4" /></button>
         </div>
         <span className="mt-5 inline-flex rounded-full bg-neutral-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-neutral-500">{goal.status}</span>
         <h2 className="mt-3 text-xl font-black tracking-tight text-neutral-900">{goal.title}</h2>
