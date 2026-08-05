@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { payloadDigest, unixIso, verifyRazorpaySignature, type RazorpayWebhook } from "@/lib/billing/razorpay"
-import { recordBillingEvent } from "@/lib/data/growth"
+import { recordBillingEvent } from "@/lib/data/account"
 
 export const runtime = "nodejs"
 

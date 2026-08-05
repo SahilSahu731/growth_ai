@@ -2,7 +2,6 @@
 
 import { createUser, findUserByEmail } from "@/lib/data/users"
 import { hashPassword } from "@/lib/password"
-import { claimReferral } from "@/lib/data/growth"
 
 export type AuthActionState = {
   error?: string
@@ -22,7 +21,6 @@ export async function signupAction(
   const email = parseText(formData.get("email")).toLowerCase()
   const password = parseText(formData.get("password"))
   const confirmPassword = parseText(formData.get("confirmPassword"))
-  const referralCode = parseText(formData.get("referralCode"))
 
   if (!name || !email || !password || !confirmPassword) {
     return { error: "Please fill in all required fields." }
@@ -45,14 +43,12 @@ export async function signupAction(
 
     const passwordHash = await hashPassword(password)
 
-    const created = await createUser({
+    await createUser({
       id: crypto.randomUUID(),
       name,
       email,
       passwordHash,
     })
-    if (referralCode) await claimReferral(referralCode, created.id).catch(error => console.error("Referral attribution failed", error))
-
     return {
       success: "Account created successfully.",
       email,

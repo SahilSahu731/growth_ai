@@ -1,17 +1,5 @@
 import { redirect } from "next/navigation"
-import { getServerSession } from "next-auth"
-import { generateWeeklyReviewAction } from "@/app/(user)/growth-actions"
-import { authOptions } from "@/auth"
-import { ReviewEditor } from "@/components/growth/review-editor"
-import { Button } from "@/components/ui/button"
-import { getGrowthDashboard, getProjectWorkspace } from "@/lib/data/growth"
 
-export default async function ReviewsPage() {
-  const session = await getServerSession(authOptions); if (!session?.user?.id) redirect("/login")
-  const dashboard = await getGrowthDashboard(session.user.id); if (!dashboard?.preferences) redirect("/onboarding")
-  const workspaces = (await Promise.all(dashboard.projects.map(goal => getProjectWorkspace(session.user.id!, goal.id)))).filter(Boolean)
-  const reviews = workspaces.flatMap(workspace => workspace?.reviews ?? []).sort((a,b) => b.weekStart.localeCompare(a.weekStart))
-  return <div className="mx-auto w-full max-w-5xl space-y-7"><section><p className="text-[10px] font-bold uppercase tracking-[.18em] text-neutral-400">Weekly reflections</p><h1 className="mt-3 text-4xl font-black tracking-[-.04em] text-neutral-950 sm:text-5xl">See the week as it was.<br /><span className="font-editorial font-normal italic text-neutral-400">Not as you wish it had been.</span></h1><p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-neutral-500">GrowthAI grounds each review in your saved reflections. You can rewrite the narrative whenever context is missing.</p></section><section className="flex flex-wrap gap-3">{dashboard.projects.filter(goal => goal.status === "active").map(goal => <form key={goal.id} action={generateWeeklyReviewAction}><input type="hidden" name="projectId" value={goal.id} /><Button type="submit" className="rounded-full bg-neutral-950 text-white hover:bg-neutral-800">Reflect on {goal.name}</Button></form>)}</section><section className="space-y-5">{reviews.length ? reviews.map(review => { const goal = dashboard.projects.find(item => item.id === review.projectId); return <article key={review.id} className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8"><div className="flex flex-wrap justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Week of {review.weekStart}</p><h2 className="mt-2 text-2xl font-black tracking-tight">{goal?.name ?? "Growth reflection"}</h2></div><div className="flex gap-5 text-center"><Metric label="Reflections" value={review.checkInsCompleted} /><Metric label="Movement" value={review.meaningfulProgressCount} /><Metric label="Missed" value={review.promptsMissed} /></div></div><div className="mt-6 grid gap-3 md:grid-cols-3"><Block label="Meaningful movement" value={review.shippedSummary} /><Block label="What made it hard" value={review.blockers} /><Block label="What deserves care next" value={review.nextWeekFocus} /></div><div className="mt-5"><ReviewEditor review={review} /></div></article> }) : <div className="rounded-3xl border border-dashed border-neutral-300 bg-white/60 p-8 text-sm text-neutral-500">No weekly reflection yet. There is nothing to catch up on.</div>}</section></div>
+export default function ReviewsPage() {
+  redirect("/chat")
 }
-function Metric({ label, value }: { label: string; value: number }) { return <div><p className="text-xl font-black">{value}</p><p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">{label}</p></div> }
-function Block({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">{label}</p><p className="mt-2 text-sm leading-7 text-neutral-600">{value || "Nothing recorded."}</p></div> }

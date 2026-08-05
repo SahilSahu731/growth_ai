@@ -21,7 +21,7 @@ export function GoogleAuthButton({ enabled, label }: { enabled: boolean; label: 
   async function continueWithGoogle() {
     if (!enabled) return
     setPending(true)
-    await signIn("google", { callbackUrl: "/dashboard" })
+    await signIn("google", { callbackUrl: "/chat?new=1" })
     setPending(false)
   }
 

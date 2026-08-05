@@ -136,15 +136,6 @@
 .auth-snapshot { position: relative; transition: border-color 300ms ease, transform 300ms ease, box-shadow 300ms ease; }
 .auth-snapshot::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 14% 0%, rgba(114,231,255,.075), transparent 30%); }
 .auth-snapshot:hover { transform: translateY(-3px); border-color: rgba(114,231,255,.2); box-shadow: 0 28px 80px rgba(0,0,0,.46), 0 0 0 1px rgba(114,231,255,.035); }
-.onboarding-input, .onboarding-select, .onboarding-textarea { width: 100%; border: 1px solid rgba(255,255,255,.1); background: #2c2c2c; color: #fff; transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease; }
-.onboarding-input { height: 3.25rem; border-radius: .75rem; padding-inline: 1rem; font-size: .875rem; }
-.onboarding-select { height: 3.25rem; border-radius: .75rem; padding-inline: 1rem; font-size: .8rem; }
-.onboarding-textarea { min-height: 7rem; border-radius: .75rem; padding: .9rem 1rem; font-size: .875rem; line-height: 1.6; resize: vertical; }
-.onboarding-input:hover, .onboarding-select:hover, .onboarding-textarea:hover { border-color: rgba(255,255,255,.16); }
-.onboarding-input:focus, .onboarding-select:focus, .onboarding-textarea:focus { border-color: rgba(114,231,255,.6); background: #303030; box-shadow: 0 0 0 3px rgba(114,231,255,.08); outline: none; }
-.onboarding-input::placeholder, .onboarding-textarea::placeholder { color: rgba(255,255,255,.28); }
-.onboarding-select option { background: #2c2c2c; color: #fff; }
-
 /* Legacy neutral utilities are intentionally remapped while the product moves to
    semantic color tokens. This keeps every existing authenticated screen dark. */
 .bg-white, [class~="bg-white/92"], [class~="bg-white/90"], [class~="bg-white/85"], [class~="bg-white/84"], [class~="bg-white/80"], [class~="bg-white/70"], [class~="bg-white/60"] { background-color: #111111; }

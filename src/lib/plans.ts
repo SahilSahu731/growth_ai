@@ -13,9 +13,9 @@ export const PLANS: readonly Plan[] = [
   {
     id: "free",
     name: "Free",
-    description: "A complete, calm growth loop for one meaningful intention.",
+    description: "A complete chat-to-action loop for focused personal growth.",
     monthlyPrice: 0,
-    features: ["One active life intention", "Gentle reflections and grounded guidance", "Reflection rhythm and weekly review", "Private by default"],
+    features: ["Up to 3 active goals", "AI-planned, editable goal-linked tasks", "Weekly report and Growth Map", "Private by default"],
   },
   {
     id: "pro",
@@ -23,7 +23,7 @@ export const PLANS: readonly Plan[] = [
     description: "For growing across several parts of life with deeper memory.",
     monthlyPrice: 999,
     badge: "Most popular",
-    features: ["Up to 10 active intentions", "Deeper patterns and review history", "Optional evidence integrations", "Public growth pages and exports"],
+    features: ["Up to 25 active goals", "Calendar Operator and deeper memory", "Voice Coach and advanced insights", "Exports and priority features"],
   },
   {
     id: "founder",

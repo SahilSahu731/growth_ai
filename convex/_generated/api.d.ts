@@ -8,8 +8,11 @@
  * @module
  */
 
-import type * as comparisons from "../comparisons.js";
-import type * as growth from "../growth.js";
+import type * as account from "../account.js";
+import type * as billing from "../billing.js";
+import type * as lib_serverAuth from "../lib/serverAuth.js";
+import type * as operator from "../operator.js";
+import type * as seed from "../seed.js";
 import type * as users from "../users.js";
 
 import type {
@@ -19,8 +22,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  comparisons: typeof comparisons;
-  growth: typeof growth;
+  account: typeof account;
+  billing: typeof billing;
+  "lib/serverAuth": typeof lib_serverAuth;
+  operator: typeof operator;
+  seed: typeof seed;
   users: typeof users;
 }>;
 

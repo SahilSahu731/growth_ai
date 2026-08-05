@@ -1,15 +1,45 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
-import { createReferralAction } from "@/app/(user)/growth-actions"
+
 import { authOptions } from "@/auth"
 import { DangerZone } from "@/components/growth/danger-zone"
-import { PreferencesForm, PublicProjectForm } from "@/components/growth/preferences-form"
-import { getGithubConnection, getGrowthDashboard, getReferral } from "@/lib/data/growth"
+import { AccountPreferencesForm } from "@/components/operator/account-preferences-form"
+import { getAccountOverview } from "@/lib/data/account"
 
 export default async function SettingsPage() {
-  const session = await getServerSession(authOptions); if (!session?.user?.id) redirect("/login")
-  const [dashboard, github, referral] = await Promise.all([getGrowthDashboard(session.user.id), getGithubConnection(session.user.id), getReferral(session.user.id)]); if (!dashboard?.preferences) redirect("/onboarding")
-  return <div className="mx-auto w-full max-w-5xl space-y-7"><section><p className="text-[10px] font-bold uppercase tracking-[.18em] text-neutral-400">Settings</p><h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">Make this space feel like yours.</h1><p className="mt-3 text-sm leading-7 text-neutral-500">Change the rhythm or tone without losing anything you have learned.</p></section><section className="grid gap-5 lg:grid-cols-2"><Panel title="Reflection preferences"><PreferencesForm preferences={dashboard.preferences} /></Panel><Panel title="Account & plan"><p className="text-sm font-bold text-neutral-800">{session.user.name ?? "GrowthAI member"}</p><p className="mt-1 text-sm text-neutral-400">{session.user.email}</p><div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">Current plan</p><p className="mt-2 text-xl font-black capitalize">{dashboard.user.planTier}</p></div><Link href="/pricing" className="mt-4 inline-block text-xs font-bold text-neutral-950">View plans →</Link></Panel><Panel title="Optional activity evidence"><p className="text-sm leading-7 text-neutral-500">{github ? `GitHub is connected as ${github.login}. It remains supporting evidence—not a measure of your worth or total growth.` : "If your intention involves coding, GitHub can add optional activity evidence. It is never required and never decides whether your growth is meaningful."}</p><Link href="/api/auth/signin/github?callbackUrl=/settings" className="mt-4 inline-block rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs font-bold">{github ? "Reconnect GitHub" : "Connect GitHub"}</Link></Panel><Panel title="Invite someone you care about">{referral ? <><p className="text-sm text-neutral-500">Share this private link with someone who wants a calmer way to grow.</p><code className="mt-3 block overflow-x-auto rounded-xl bg-neutral-950 p-3 text-xs text-white">{`${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/signup?ref=${referral.code}`}</code></> : <form action={createReferralAction}><p className="mb-4 text-sm leading-7 text-neutral-500">Create a private invite link. There are no manipulative rewards or public rankings.</p><button className="rounded-full border border-neutral-200 px-4 py-2 text-xs font-bold">Create invite link</button></form>}</Panel>{dashboard.projects.map(goal => <Panel key={goal.id} title={`Public page · ${goal.name}`}><PublicProjectForm project={goal} /></Panel>)}</section><section className="rounded-3xl border border-red-200 bg-red-50/40 p-6"><h2 className="mb-4 font-black">Your data, your choice</h2><DangerZone email={session.user.email ?? ""} /></section></div>
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) redirect("/login")
+  const account = await getAccountOverview(session.user.id)
+  if (!account) redirect("/login")
+
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-7">
+      <section>
+        <p className="text-[10px] font-bold uppercase tracking-[.18em] text-primary">Settings</p>
+        <h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">Make this space feel like yours.</h1>
+        <p className="mt-3 text-sm leading-7 text-neutral-500">Control how GrowthAI talks with you and handles your account.</p>
+      </section>
+      <section className="grid gap-5 lg:grid-cols-2">
+        <Panel title="AI preferences"><AccountPreferencesForm preferences={account.preferences} /></Panel>
+        <Panel title="Account & plan">
+          <p className="text-sm font-bold text-neutral-800">{session.user.name ?? "GrowthAI member"}</p>
+          <p className="mt-1 text-sm text-neutral-400">{session.user.email}</p>
+          <div className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">Current plan</p>
+            <p className="mt-2 text-xl font-black capitalize">{account.user.planTier}</p>
+          </div>
+          <Link href="/pricing" className="mt-4 inline-block text-xs font-bold text-primary">View plans →</Link>
+        </Panel>
+      </section>
+      <section className="rounded-3xl border border-red-200 bg-red-50/40 p-6">
+        <h2 className="mb-4 font-black">Your data, your choice</h2>
+        <DangerZone email={session.user.email ?? ""} />
+      </section>
+    </div>
+  )
 }
-function Panel({ title, children }: { title: string; children: React.ReactNode }) { return <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"><h2 className="mb-5 text-xl font-black tracking-tight">{title}</h2>{children}</div> }
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"><h2 className="mb-5 text-xl font-black tracking-tight">{title}</h2>{children}</div>
+}

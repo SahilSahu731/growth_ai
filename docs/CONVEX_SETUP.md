@@ -1,6 +1,6 @@
 # Connect GrowthAI to Convex
 
-GrowthAI's Convex schema and functions already live in `convex/`. Connecting the database means creating a Convex deployment, pushing those functions, and giving the trusted Next.js server permission to call the internal compatibility API.
+GrowthAI's Convex schema and functions already live in `convex/`. Connecting the database means creating a Convex deployment, pushing those functions, and giving the trusted Next.js server its authenticated server identity.
 
 ## Local development
 
@@ -25,7 +25,7 @@ NEXT_PUBLIC_CONVEX_URL="https://your-deployment.convex.cloud"
 
 ### 2. Create the server-only deployment token
 
-GrowthAI's current server adapter calls internal Convex functions from Next.js. Generate a token for that development deployment:
+GrowthAI's server adapter authenticates public Convex calls as a fixed trusted server identity. Generate a token for that development deployment:
 
 ```bash
 npx convex deployment token create growthai-next-server --deployment dev --save-env .env.local
@@ -66,7 +66,7 @@ You can also open the deployment dashboard with:
 npx convex dashboard
 ```
 
-After signing in through Google and completing onboarding, the dashboard should show records in tables such as `users`, `growthProjects`, `checkIns`, and `preferences`.
+After signing in through Google, `/chat` should open immediately. Sending a message and approving a task proposal should add records to `operatorConversations`, `operatorMessages`, and `operatorTasks`.
 
 ## Production with Vercel
 
@@ -94,7 +94,7 @@ The build command pushes the current schema and functions before building Next.j
 - **Missing `NEXT_PUBLIC_CONVEX_URL`:** run `npm run convex:dev`, then restart Next.js.
 - **Missing `CONVEX_DEPLOY_KEY`:** create the development token in step 2 or add the production key in Vercel.
 - **Functions not found:** ensure `npm run convex:dev` is still running locally or `npx convex deploy` succeeded in production.
-- **Unauthorized/internal function error:** confirm the key belongs to the same deployment as the URL.
+- **Unauthorized server request:** confirm the key belongs to the same deployment as the URL and restart Next.js after changing it.
 - **Schema change is not visible:** check the Convex terminal for validation errors and inspect `npx convex logs`.
 - **Wrong database data:** compare `.env.local`'s deployment URL with the URL shown in the selected Convex dashboard deployment.
 

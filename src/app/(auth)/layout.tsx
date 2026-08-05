@@ -9,7 +9,7 @@ import { authOptions } from "@/auth"
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
 
-  if (session?.user) redirect("/dashboard")
+  if (session?.user) redirect("/chat")
 
   return (
     <div className="auth-fullscreen relative min-h-screen overflow-hidden bg-[#050706] text-white">

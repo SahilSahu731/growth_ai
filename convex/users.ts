@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { internalMutationGeneric as internalMutation, internalQueryGeneric as internalQuery } from "convex/server"
+import { mutationGeneric as mutation, queryGeneric as query } from "convex/server"
 import { v } from "convex/values"
+import { requireServer } from "./lib/serverAuth"
 
 function publicUser(user: any) {
   if (!user) return null
@@ -16,9 +17,10 @@ function publicUser(user: any) {
   }
 }
 
-export const findByEmail = internalQuery({
+export const findByEmail = query({
   args: { email: v.string() },
   handler: async (ctx, { email }) => {
+    await requireServer(ctx)
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q: any) => q.eq("email", email.trim().toLowerCase()))
@@ -27,7 +29,7 @@ export const findByEmail = internalQuery({
   },
 })
 
-export const create = internalMutation({
+export const create = mutation({
   args: {
     legacyId: v.string(),
     name: v.string(),
@@ -35,6 +37,7 @@ export const create = internalMutation({
     passwordHash: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireServer(ctx)
     const email = args.email.trim().toLowerCase()
     const existing = await ctx.db.query("users").withIndex("by_email", (q: any) => q.eq("email", email)).unique()
     if (existing) throw new Error("An account with this email already exists.")
@@ -54,9 +57,10 @@ export const create = internalMutation({
   },
 })
 
-export const upsertOAuth = internalMutation({
+export const upsertOAuth = mutation({
   args: { email: v.string(), name: v.optional(v.string()), provider: v.union(v.literal("google"), v.literal("github")) },
   handler: async (ctx, args) => {
+    await requireServer(ctx)
     const email = args.email.trim().toLowerCase()
     const name = args.name?.trim() || email.split("@")[0] || "User"
     const existing = await ctx.db.query("users").withIndex("by_email", (q: any) => q.eq("email", email)).unique()
