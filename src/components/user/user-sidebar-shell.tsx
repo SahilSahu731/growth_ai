@@ -6,7 +6,6 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  AiChat02Icon,
   Analytics01Icon,
   Brain02Icon,
   Calendar03Icon,
@@ -45,7 +44,6 @@ type UserSidebarShellProps = {
 }
 
 const NAV_ITEMS = [
-  { href: "/chat", label: "Chat", icon: AiChat02Icon },
   { href: "/goals", label: "Goals", icon: Target01Icon },
   { href: "/tasks", label: "Tasks", icon: Task01Icon },
   { href: "/weekly-report", label: "Weekly report", icon: File01Icon },
@@ -67,7 +65,6 @@ function getInitials(value: string): string {
 }
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/chat") return pathname === "/chat"
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
@@ -167,7 +164,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
             {conversations.length ? (
               <SidebarGroup className="space-y-1 border-t border-neutral-200 px-0 py-3 group-data-[collapsible=icon]:hidden">
                 <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400">Recent chats</p>
-                {conversations.slice(0, 10).map((conversation) => (
+                {conversations.map((conversation) => (
                   <Link
                     key={conversation.id}
                     href={`/chat?conversation=${encodeURIComponent(conversation.id)}`}

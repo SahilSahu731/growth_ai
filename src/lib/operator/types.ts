@@ -78,6 +78,14 @@ export type OperatorWorkspace = {
   timezone: string
 }
 
+export type OperatorWeeklyActivity = {
+  since: string
+  conversationTurns: number
+  openTasks: number
+  activeGoals: number
+  enoughData: boolean
+}
+
 export type OperatorTurn = {
   content: string
   state: OperatorState

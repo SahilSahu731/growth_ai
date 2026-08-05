@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { ArrowRight, CheckCircle2, MessageSquareText, Sparkles } from "lucide-react"
 
 import { authOptions } from "@/auth"
-import { ensureOperatorConversation, getOperatorWorkspace } from "@/lib/data/operator"
+import { ensureOperatorConversation, getOperatorWeeklyActivity, getOperatorWorkspace } from "@/lib/data/operator"
 
 export const dynamic = "force-dynamic"
 
@@ -12,11 +12,11 @@ export default async function WeeklyReportPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) redirect("/login")
   const conversation = await ensureOperatorConversation(session.user.id)
-  const workspace = await getOperatorWorkspace(session.user.id, conversation.id)
+  const [workspace, activity] = await Promise.all([
+    getOperatorWorkspace(session.user.id, conversation.id),
+    getOperatorWeeklyActivity(session.user.id),
+  ])
   if (!workspace) redirect("/chat")
-
-  const weekStart = new Date(workspace.conversation.updatedAt).getTime() - 7 * 24 * 60 * 60 * 1000
-  const recentMessages = workspace.messages.filter((message) => new Date(message.createdAt).getTime() >= weekStart)
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-7">
@@ -27,14 +27,14 @@ export default async function WeeklyReportPage() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-3">
-        <Metric icon={MessageSquareText} label="Conversation turns" value={String(recentMessages.filter((message) => message.role === "user").length)} />
-        <Metric icon={CheckCircle2} label="Open approved tasks" value={String(workspace.tasks.length)} />
-        <Metric icon={Sparkles} label="Current mode" value={workspace.conversation.state.replaceAll("_", " ")} />
+        <Metric icon={MessageSquareText} label="Conversation turns" value={String(activity?.conversationTurns ?? 0)} />
+        <Metric icon={CheckCircle2} label="Open approved tasks" value={String(activity?.openTasks ?? 0)} />
+        <Metric icon={Sparkles} label="Active goals" value={String(activity?.activeGoals ?? 0)} />
       </section>
 
       <section className="rounded-3xl border border-neutral-200 bg-white p-7 shadow-sm sm:p-9">
         <p className="text-xs font-bold uppercase tracking-[.15em] text-neutral-400">GrowthAI synthesis</p>
-        {recentMessages.length >= 6 ? (
+        {activity?.enoughData ? (
           <><h2 className="mt-4 text-2xl font-black tracking-tight">There is enough context for a useful review.</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-500">Ask GrowthAI to review what changed, what was repeatedly blocked, and which assumption the next plan should test.</p><Link href={`/chat?conversation=${encodeURIComponent(conversation.id)}`} className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground">Generate in chat<ArrowRight className="size-4" /></Link></>
         ) : (
           <><h2 className="mt-4 text-2xl font-black tracking-tight">Still gathering evidence.</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-500">A trustworthy report needs more than one answer. Keep talking naturally; GrowthAI will synthesize the week after enough real context exists.</p><Link href={`/chat?conversation=${encodeURIComponent(conversation.id)}`} className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-neutral-900">Continue the conversation<ArrowRight className="size-4" /></Link></>

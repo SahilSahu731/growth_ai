@@ -24,7 +24,7 @@ export const getOverview = query({
     await requireServer(ctx)
     const [user, conversations] = await Promise.all([
       userById(ctx, userId),
-      ctx.db.query("operatorConversations").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).order("desc").take(20),
+      ctx.db.query("operatorConversations").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).order("desc").collect(),
     ])
     if (!user) return null
     return {

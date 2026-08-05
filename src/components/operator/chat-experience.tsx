@@ -1,7 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import { useActionState, useCallback, useEffect, useRef, useState } from "react"
-import { ArrowUp, Check, CheckCircle2, ListTodo, Sparkles } from "lucide-react"
+import { ArrowRight, ArrowUp, Brain, Check, CheckCircle2, FileText, ListTodo, LockKeyhole, Sparkles, Target, type LucideIcon } from "lucide-react"
 
 import {
   acceptOperatorTasksAction,
@@ -11,7 +12,7 @@ import {
 } from "@/app/(user)/chat/actions"
 import { EditableTaskCard } from "@/components/operator/editable-task-card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import type { OperatorMessage, OperatorTask, OperatorWorkspace } from "@/lib/operator/types"
+import type { OperatorMessage, OperatorTask, OperatorWeeklyActivity, OperatorWorkspace } from "@/lib/operator/types"
 
 const starters = [
   "I feel stuck but don’t know why",
@@ -19,7 +20,7 @@ const starters = [
   "I need help deciding what to do next",
 ]
 
-export function ChatExperience({ workspace, userName }: { workspace: OperatorWorkspace; userName: string }) {
+export function ChatExperience({ workspace, weeklyActivity, userName }: { workspace: OperatorWorkspace; weeklyActivity: OperatorWeeklyActivity | null; userName: string }) {
   const [draft, setDraft] = useState("")
   const submitMessage = useCallback(async (previous: ChatActionState, formData: FormData) => {
     const next = await sendOperatorMessageAction(previous, formData)
@@ -52,7 +53,7 @@ export function ChatExperience({ workspace, userName }: { workspace: OperatorWor
 
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
           {workspace.messages.length === 0 ? (
-            <EmptyConversation firstName={firstName} conversationId={workspace.conversation.id} sendAction={sendAction} pending={pending} />
+            <EmptyConversation firstName={firstName} conversationId={workspace.conversation.id} workspace={workspace} weeklyActivity={weeklyActivity} sendAction={sendAction} pending={pending} />
           ) : (
             <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-7 sm:py-10">
               {workspace.messages.map((message) => (
@@ -120,21 +121,40 @@ export function ChatExperience({ workspace, userName }: { workspace: OperatorWor
 function EmptyConversation({
   firstName,
   conversationId,
+  workspace,
+  weeklyActivity,
   sendAction,
   pending,
 }: {
   firstName: string
   conversationId: string
+  workspace: OperatorWorkspace
+  weeklyActivity: OperatorWeeklyActivity | null
   sendAction: (payload: FormData) => void
   pending: boolean
 }) {
+  const activeGoals = workspace.goals.filter((goal) => goal.status === "active").length
+  const reportReady = weeklyActivity?.enoughData ?? false
+  const mapReady = (weeklyActivity?.conversationTurns ?? 0) >= 3 || activeGoals > 0
+
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-5 py-12 sm:px-8">
-      <span className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_10px_35px_rgba(114,231,255,.15)]"><Sparkles className="size-5" /></span>
-      <p className="mt-7 text-sm font-semibold text-primary">Hey {firstName}.</p>
-      <h1 className="mt-2 max-w-2xl text-4xl font-semibold leading-[1.03] tracking-[-.045em] text-white sm:text-6xl">You don’t need to know where to begin.</h1>
-      <p className="mt-5 max-w-xl text-sm leading-7 text-white/45">Tell me what life has felt like recently. I’ll help separate the noise from what deserves attention first.</p>
-      <div className="mt-9 grid gap-2.5">
+    <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-center px-5 py-10 sm:px-8">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_10px_35px_rgba(114,231,255,.15)]"><Sparkles className="size-4" /></span>
+        <p className="text-sm font-semibold text-primary">Hey {firstName}. What are we moving forward?</p>
+      </div>
+      <h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-[1.03] tracking-[-.045em] text-white sm:text-5xl">Start a conversation or open your growth workspace.</h1>
+      <p className="mt-4 max-w-2xl text-sm leading-7 text-white/45">GrowthAI turns useful context into goals, focused tasks, and an honest view of your progress.</p>
+
+      <div className="mt-7 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        <FeatureShortcut href="/tasks" icon={ListTodo} label="Tasks" detail={`${weeklyActivity?.openTasks ?? workspace.tasks.length} open`} />
+        <FeatureShortcut href="/goals" icon={Target} label="Goals" detail={`${activeGoals} of ${workspace.goalLimit} active`} />
+        <FeatureShortcut href={reportReady ? "/weekly-report" : undefined} icon={FileText} label="Weekly report" detail={reportReady ? "Ready to review" : "Needs more activity"} locked={!reportReady} />
+        <FeatureShortcut href={mapReady ? "/growth-map" : undefined} icon={Brain} label="Growth map" detail={mapReady ? "See your direction" : "Build context first"} locked={!mapReady} />
+      </div>
+
+      <p className="mt-8 text-[10px] font-bold uppercase tracking-[.16em] text-white/30">Or start with one of these</p>
+      <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
         {starters.map((starter) => (
           <form key={starter} action={sendAction}>
             <input type="hidden" name="conversationId" value={conversationId} />
@@ -142,7 +162,7 @@ function EmptyConversation({
               name="message"
               value={starter}
               disabled={pending}
-              className="group flex w-full items-center justify-between rounded-xl border border-white/[.09] bg-white/[.035] px-4 py-3.5 text-left text-sm text-white/70 transition hover:border-primary/30 hover:bg-primary/[.07] hover:text-white disabled:opacity-40"
+              className="group flex h-full min-h-20 w-full items-start justify-between gap-3 rounded-xl border border-white/[.09] bg-white/[.035] px-4 py-3.5 text-left text-sm leading-5 text-white/70 transition hover:border-primary/30 hover:bg-primary/[.07] hover:text-white disabled:opacity-40"
             >
               {starter}
               <ArrowUp className="size-4 rotate-45 text-white/25 transition group-hover:text-primary" />
@@ -152,6 +172,13 @@ function EmptyConversation({
       </div>
     </div>
   )
+}
+
+function FeatureShortcut({ href, icon: Icon, label, detail, locked = false }: { href?: string; icon: LucideIcon; label: string; detail: string; locked?: boolean }) {
+  const content = <><span className="flex size-9 items-center justify-center rounded-xl bg-primary/[.1] text-primary"><Icon className="size-4" /></span><div className="mt-4 flex items-end justify-between gap-2"><div><p className="text-sm font-semibold text-white/80">{label}</p><p className="mt-1 text-[10px] text-white/35">{detail}</p></div>{locked ? <LockKeyhole className="mb-1 size-3.5 text-white/20" /> : <ArrowRight className="mb-1 size-3.5 text-white/25 transition group-hover:translate-x-0.5 group-hover:text-primary" />}</div></>
+  const className = "group rounded-2xl border border-white/[.09] bg-white/[.035] p-4 text-left transition"
+  if (!href) return <div className={`${className} cursor-not-allowed opacity-60`} aria-disabled="true">{content}</div>
+  return <Link href={href} className={`${className} hover:border-primary/30 hover:bg-primary/[.06]`}>{content}</Link>
 }
 
 function Message({

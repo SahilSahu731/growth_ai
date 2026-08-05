@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/auth"
 import { ChatExperience } from "@/components/operator/chat-experience"
-import { createOperatorConversation, ensureOperatorConversation, getOperatorWorkspace } from "@/lib/data/operator"
+import { createOperatorConversation, ensureOperatorConversation, getOperatorWeeklyActivity, getOperatorWorkspace } from "@/lib/data/operator"
 
 export const dynamic = "force-dynamic"
 
@@ -20,8 +20,11 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   const conversation = params.conversation
     ? { id: params.conversation }
     : await ensureOperatorConversation(session.user.id)
-  const workspace = await getOperatorWorkspace(session.user.id, conversation.id)
+  const [workspace, weeklyActivity] = await Promise.all([
+    getOperatorWorkspace(session.user.id, conversation.id),
+    getOperatorWeeklyActivity(session.user.id),
+  ])
   if (!workspace) redirect("/chat")
 
-  return <ChatExperience workspace={workspace} userName={session.user.name ?? "there"} />
+  return <ChatExperience workspace={workspace} weeklyActivity={weeklyActivity} userName={session.user.name ?? "there"} />
 }
