@@ -13,7 +13,7 @@ export type AccountOverview = {
     planTier: UserPlanTier
     timezone?: string
   }
-  conversations: Array<{ id: string; title: string }>
+  conversations: Array<{ id: string; title: string; pinned: boolean }>
   preferences: {
     coachTone: CoachTone
     timezone: string

@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Next 16's CLI type checker can lose captured output on Node 24.
+  // The compiler API performs the same check without spawning that process.
+  experimental: {
+    useTypeScriptCli: false,
+  },
   async headers() {
     return [{
       source: "/:path*",

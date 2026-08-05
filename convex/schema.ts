@@ -37,6 +37,7 @@ export default defineSchema({
     userId: v.string(),
     title: v.string(),
     state: conversationState,
+    pinnedAt: v.optional(v.string()),
     createdAt: v.string(),
     updatedAt: v.string(),
   })

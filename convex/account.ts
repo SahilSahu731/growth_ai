@@ -29,7 +29,12 @@ export const getOverview = query({
     if (!user) return null
     return {
       user: clean(user),
-      conversations: conversations.map((conversation: any) => ({ id: conversation.legacyId, title: conversation.title })),
+      conversations: conversations
+        .sort((a: any, b: any) => {
+          if (Boolean(a.pinnedAt) !== Boolean(b.pinnedAt)) return a.pinnedAt ? -1 : 1
+          return b.updatedAt.localeCompare(a.updatedAt)
+        })
+        .map((conversation: any) => ({ id: conversation.legacyId, title: conversation.title, pinned: Boolean(conversation.pinnedAt) })),
       preferences: {
         coachTone: user.coachTone ?? "balanced",
         timezone: user.timezone ?? "UTC",

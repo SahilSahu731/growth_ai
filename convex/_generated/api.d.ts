@@ -10,6 +10,7 @@
 
 import type * as account from "../account.js";
 import type * as billing from "../billing.js";
+import type * as lib_conversationTitle from "../lib/conversationTitle.js";
 import type * as lib_serverAuth from "../lib/serverAuth.js";
 import type * as operator from "../operator.js";
 import type * as seed from "../seed.js";
@@ -24,6 +25,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   account: typeof account;
   billing: typeof billing;
+  "lib/conversationTitle": typeof lib_conversationTitle;
   "lib/serverAuth": typeof lib_serverAuth;
   operator: typeof operator;
   seed: typeof seed;

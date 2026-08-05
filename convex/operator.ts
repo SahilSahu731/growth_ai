@@ -139,6 +139,44 @@ export const getWorkspace = query({
   },
 })
 
+export const renameConversation = mutation({
+  args: { userId: v.string(), conversationId: v.string(), title: v.string() },
+  handler: async (ctx, args) => {
+    await requireServer(ctx)
+    const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
+    if (!conversation) throw new Error("Conversation not found")
+    const title = args.title.replace(/\s+/g, " ").trim().slice(0, 64)
+    if (title.length < 2) throw new Error("Use at least 2 characters")
+    await ctx.db.patch(conversation._id, { title, updatedAt: now() })
+    return { id: conversation.legacyId, title }
+  },
+})
+
+export const setConversationPinned = mutation({
+  args: { userId: v.string(), conversationId: v.string(), pinned: v.boolean() },
+  handler: async (ctx, args) => {
+    await requireServer(ctx)
+    const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
+    if (!conversation) throw new Error("Conversation not found")
+    const timestamp = now()
+    await ctx.db.patch(conversation._id, { pinnedAt: args.pinned ? timestamp : undefined, updatedAt: timestamp })
+    return true
+  },
+})
+
+export const deleteConversation = mutation({
+  args: { userId: v.string(), conversationId: v.string() },
+  handler: async (ctx, args) => {
+    await requireServer(ctx)
+    const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
+    if (!conversation) return false
+    const messages = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId)).collect()
+    for (const message of messages) await ctx.db.delete(message._id)
+    await ctx.db.delete(conversation._id)
+    return true
+  },
+})
+
 export const createGoal = mutation({
   args: { userId: v.string(), title: v.string(), description: v.string() },
   handler: async (ctx, args) => {

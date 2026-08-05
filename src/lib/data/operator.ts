@@ -19,6 +19,18 @@ export function createOperatorConversation(userId: string): Promise<OperatorConv
   return convexMutation("operator:createConversation", { userId })
 }
 
+export function renameOperatorConversation(input: { userId: string; conversationId: string; title: string }): Promise<{ id: string; title: string }> {
+  return convexMutation("operator:renameConversation", input)
+}
+
+export function setOperatorConversationPinned(input: { userId: string; conversationId: string; pinned: boolean }): Promise<boolean> {
+  return convexMutation("operator:setConversationPinned", input)
+}
+
+export function deleteOperatorConversation(input: { userId: string; conversationId: string }): Promise<boolean> {
+  return convexMutation("operator:deleteConversation", input)
+}
+
 export function getOperatorWorkspace(userId: string, conversationId: string): Promise<OperatorWorkspace | null> {
   return convexQuery("operator:getWorkspace", { userId, conversationId })
 }
