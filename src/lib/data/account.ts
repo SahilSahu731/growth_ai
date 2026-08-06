@@ -46,11 +46,59 @@ export function recordBillingEvent(input: {
   providerEventId: string
   eventType: string
   payloadDigest: string
+  shouldApply: boolean
+  ignoreReason?: string
   userId?: string
   providerSubscriptionId?: string
   subscriptionStatus?: string
+  planTier?: "pro" | "founder"
+  amount?: number
+  currency?: string
   periodStart?: string
   periodEnd?: string
 }): Promise<{ duplicate: boolean }> {
   return convexMutation("billing:recordEvent", input)
+}
+
+export type BillingSubscription = {
+  id: string
+  userId: string
+  provider: "razorpay"
+  providerSubscriptionId: string
+  checkoutUrl?: string
+  planTier: "pro" | "founder"
+  status: string
+  periodStart?: string
+  periodEnd?: string
+  cancelAtPeriodEnd: boolean
+  amount: number
+  currency: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type UserBillingOverview = {
+  planTier: UserPlanTier
+  current: BillingSubscription | null
+  subscriptions: BillingSubscription[]
+}
+
+export function getUserBilling(userId: string): Promise<UserBillingOverview | null> {
+  return convexQuery("billing:getUserBilling", { userId })
+}
+
+export function beginBillingCheckout(userId: string, planTier: "pro" | "founder"): Promise<{ ok: true; token: string } | { ok: false; reason: "existing_subscription" | "checkout_in_progress" }> {
+  return convexMutation("billing:beginCheckout", { userId, planTier })
+}
+
+export function releaseBillingCheckout(userId: string, token: string): Promise<boolean> {
+  return convexMutation("billing:releaseCheckout", { userId, token })
+}
+
+export function completeBillingCheckout(input: { userId: string; token: string; providerSubscriptionId: string; planTier: "pro" | "founder"; amount: number; currency: string; checkoutUrl: string }): Promise<boolean> {
+  return convexMutation("billing:completeCheckout", input)
+}
+
+export function markBillingCancellationRequested(userId: string, providerSubscriptionId: string): Promise<boolean> {
+  return convexMutation("billing:markCancelRequested", { userId, providerSubscriptionId })
 }

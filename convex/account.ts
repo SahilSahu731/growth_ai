@@ -103,7 +103,7 @@ export const deleteUserAccount = mutation({
     await requireServer(ctx)
     const user = await userById(ctx, args.userId)
     if (!user || user.email.toLowerCase() !== args.confirmationEmail.trim().toLowerCase()) return false
-    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions"] as const) {
+    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions", "billingCheckoutLocks"] as const) {
       const rows = await ctx.db.query(table).filter((q: any) => q.eq(q.field("userId"), args.userId)).collect()
       for (const row of rows) await ctx.db.delete(row._id)
     }

@@ -33,8 +33,9 @@ import {
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { Crown, SquarePen } from "lucide-react"
+import { CreditCard, Crown, SquarePen } from "lucide-react"
 import { ConversationHistoryItem } from "@/components/user/conversation-history-item"
+import { UpgradeDialogProvider, UpgradeTrigger } from "@/components/billing/upgrade-dialog"
 
 type UserSidebarShellProps = {
   children: ReactNode
@@ -78,6 +79,7 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/weekly-report")) return "Weekly report"
   if (pathname.startsWith("/growth-map")) return "Growth map"
   if (pathname.startsWith("/settings")) return "Settings"
+  if (pathname.startsWith("/billing")) return "Billing"
   return "GrowthAI"
 }
 
@@ -98,6 +100,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
   }
 
   return (
+    <UpgradeDialogProvider authenticated currentPlan={user.planTier}>
     <TooltipProvider delayDuration={120}>
       <SidebarProvider
         defaultOpen
@@ -159,20 +162,20 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
               <div className="group-data-[collapsible=icon]:hidden">
                 <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-neutral-400">Pro tools</p>
                 {PRO_ITEMS.map((item) => (
-                  <Link
+                  <UpgradeTrigger
                     key={item.label}
-                    href="/pricing"
+                    feature={item.label}
                     className="flex h-9 items-center gap-2 rounded-lg px-2 text-sm text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-950"
                   >
                     <HugeiconsIcon icon={item.icon} strokeWidth={2} className="size-5 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
                     <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">Pro</span>
-                  </Link>
+                  </UpgradeTrigger>
                 ))}
               </div>
-              <Link href="/pricing" title="GrowthAI Pro" aria-label="GrowthAI Pro" className="mx-auto hidden size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/8 text-primary transition hover:bg-primary/15 group-data-[collapsible=icon]:flex">
+              <UpgradeTrigger feature="GrowthAI Pro" title="GrowthAI Pro" className="mx-auto hidden size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/8 text-primary transition hover:bg-primary/15 group-data-[collapsible=icon]:flex">
                 <Crown className="size-4" />
-              </Link>
+              </UpgradeTrigger>
             </SidebarGroup>
 
             {conversations.length ? (
@@ -184,7 +187,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
           </SidebarContent>
 
           <SidebarFooter className="border-t border-neutral-200 p-2">
-            {user.planTier === "free" ? <Link href="/pricing" className="rounded-xl border border-primary/20 bg-primary/6 p-3 group-data-[collapsible=icon]:hidden"><p className="text-xs font-semibold text-neutral-800">Unlock GrowthAI Pro</p></Link> : null}
+            {user.planTier === "free" ? <UpgradeTrigger feature="GrowthAI Pro" className="w-full rounded-xl border border-primary/20 bg-primary/6 p-3 text-left group-data-[collapsible=icon]:hidden"><p className="text-xs font-semibold text-neutral-800">Unlock GrowthAI Pro</p><p className="mt-1 text-[10px] text-neutral-500">Compare plans without leaving this page</p></UpgradeTrigger> : null}
 
             <div className="flex min-h-11 cursor-pointer hover:bg-neutral-800 items-center gap-1 rounded-lg px-1 py-2 text-neutral-600">
               <div title={displayEmail ? `${displayName} (${displayEmail})` : displayName} className="flex min-w-0 flex-1 items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center">
@@ -197,10 +200,12 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
                   {displayEmail ? <p className="truncate text-xs text-neutral-400">{displayEmail}</p> : null}
                 </div>
               </div>
-              <Link href="/settings" title="Settings" aria-label="Settings" className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-950 group-data-[collapsible=icon]:hidden", isActive(pathname, "/settings") && "bg-neutral-100 text-neutral-950")}>
+              <Link href="/settings" title="Settings" aria-label="Settings" className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-950 group-data-[collapsible=icon]:hidden", isActive(pathname, "/settings") && "bg-neutral-100 text-neutral-950")}> 
                 <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="size-5" />
               </Link>
             </div>
+
+            <Link href="/billing" className={cn("flex h-9 items-center gap-2 rounded-lg px-2 text-xs font-semibold text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-950", isActive(pathname, "/billing") && "bg-neutral-100 text-neutral-950")}><CreditCard className="size-4" /><span className="group-data-[collapsible=icon]:hidden">Plan & billing</span></Link>
 
             <Button
               type="button"
@@ -232,5 +237,6 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
+    </UpgradeDialogProvider>
   )
 }

@@ -319,7 +319,7 @@ export const deleteUser = mutation({
       throw new Error("Confirmation email does not match")
     }
     const deleted: Record<string, number> = {}
-    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions"] as const) {
+    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions", "billingCheckoutLocks"] as const) {
       const rows = await ctx.db.query(table).filter((q: any) => q.eq(q.field("userId"), args.userId)).collect()
       deleted[table] = rows.length
       for (const row of rows) await ctx.db.delete(row._id)

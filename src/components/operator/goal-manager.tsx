@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useActionState, useCallback, useState } from "react"
 import { ArrowUpRight, Pencil, Plus, Target } from "lucide-react"
 
@@ -15,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { OperatorGoal, OperatorTask } from "@/lib/operator/types"
+import { UpgradeTrigger } from "@/components/billing/upgrade-dialog"
 
 export function GoalManager({ goals, tasks, goalLimit }: { goals: OperatorGoal[]; tasks: OperatorTask[]; goalLimit: number }) {
   const [createState, createAction, creating] = useActionState(createOperatorGoalAction, {} as OperatorFormState)
@@ -32,7 +32,7 @@ export function GoalManager({ goals, tasks, goalLimit }: { goals: OperatorGoal[]
         <div className="min-w-56 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between text-xs"><span className="font-bold text-neutral-700">Active goals</span><span className="text-neutral-400">{activeGoals.length} / {goalLimit}</span></div>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min((activeGoals.length / goalLimit) * 100, 100)}%` }} /></div>
-          {goalLimit === 3 ? <Link href="/pricing" className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold text-primary">Need more? Upgrade to Pro <ArrowUpRight className="size-3" /></Link> : <p className="mt-3 text-[10px] font-bold text-primary">Pro goal capacity</p>}
+          {goalLimit === 3 ? <UpgradeTrigger feature="more active goals" className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold text-primary">Need more? Upgrade to Pro <ArrowUpRight className="size-3" /></UpgradeTrigger> : <p className="mt-3 text-[10px] font-bold text-primary">Pro goal capacity</p>}
         </div>
       </section>
 
@@ -44,7 +44,7 @@ export function GoalManager({ goals, tasks, goalLimit }: { goals: OperatorGoal[]
       <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start gap-3"><span className="flex size-9 items-center justify-center rounded-xl bg-primary/[.1] text-primary"><Plus className="size-4" /></span><div><h2 className="text-xl font-black tracking-tight">Add a goal</h2><p className="mt-1 text-xs leading-5 text-neutral-500">Goals can also be created automatically when you approve an AI plan.</p></div></div>
         {atLimit ? (
-          <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/[.06] p-5"><p className="text-sm font-bold text-neutral-800">You have reached the {goalLimit}-goal limit.</p><p className="mt-2 text-xs leading-5 text-neutral-500">Complete or archive a goal to make room, or upgrade to Pro for more active goals.</p><Link href="/pricing" className="mt-4 inline-flex rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground">See Pro plans</Link></div>
+          <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/[.06] p-5"><p className="text-sm font-bold text-neutral-800">You have reached the {goalLimit}-goal limit.</p><p className="mt-2 text-xs leading-5 text-neutral-500">Complete or archive a goal to make room, or upgrade to Pro for more active goals.</p><UpgradeTrigger feature="up to 25 active goals" className="mt-4 inline-flex rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground">See Pro plans</UpgradeTrigger></div>
         ) : (
           <form action={createAction} className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)_auto] lg:items-end">
             <Field label="Goal title" htmlFor="new-goal-title"><Input id="new-goal-title" name="title" minLength={3} maxLength={80} placeholder="Find a better role" required /></Field>

@@ -108,6 +108,7 @@ export default defineSchema({
     provider: v.literal("razorpay"),
     providerCustomerId: v.optional(v.string()),
     providerSubscriptionId: v.string(),
+    checkoutUrl: v.optional(v.string()),
     planTier: v.union(v.literal("pro"), v.literal("founder")),
     status: v.string(),
     periodStart: v.optional(v.string()),
@@ -120,6 +121,14 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_provider_subscription", ["providerSubscriptionId"]),
+
+  billingCheckoutLocks: defineTable({
+    userId: v.string(),
+    token: v.string(),
+    planTier: v.union(v.literal("pro"), v.literal("founder")),
+    expiresAt: v.string(),
+    createdAt: v.string(),
+  }).index("by_user", ["userId"]),
 
   billingEvents: defineTable({
     provider: v.literal("razorpay"),
