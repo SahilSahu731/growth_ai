@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
-import { updateAccountPreferences, type CoachTone } from "@/lib/data/account"
+import { getAccountOverview, updateAccountPreferences, type CoachTone } from "@/lib/data/account"
 
 export type SettingsActionState = { error?: string; success?: string }
 
@@ -16,15 +16,20 @@ export async function updateSettingsAction(_state: SettingsActionState, formData
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
   if (!userId) return { error: "Your session expired." }
-  const coachTone = field(formData, "coachTone") as CoachTone
-  const timezone = field(formData, "timezone")
+  const account = await getAccountOverview(userId)
+  if (!account) return { error: "Your account could not be loaded." }
+  const section = field(formData, "section")
+  const legacyForm = !section
+  const coachTone = (section === "coach" || legacyForm ? field(formData, "coachTone") : account.preferences.coachTone) as CoachTone
+  const timezone = section === "general" || legacyForm ? field(formData, "timezone") : account.preferences.timezone
+  const emailNotifications = section === "notifications" || legacyForm ? formData.get("emailNotifications") === "on" : account.preferences.emailNotifications
   if (!["supportive", "balanced", "blunt"].includes(coachTone)) return { error: "Choose a conversation style." }
   try {
     await updateAccountPreferences({
       userId,
       coachTone,
       timezone,
-      emailNotifications: formData.get("emailNotifications") === "on",
+      emailNotifications,
     })
     revalidatePath("/settings")
     return { success: "Preferences saved." }

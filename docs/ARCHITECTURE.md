@@ -11,7 +11,7 @@ Convex stores the core product and operational tables:
 - `users` for identity, plan, timezone, and AI conversation preferences
 - `operatorConversations` and `operatorMessages` for chat history and structured proposals
 - `operatorGoals` and `operatorTasks` for the synchronized execution model
-- `subscriptions` and `billingEvents` for Razorpay state and webhook idempotency
+- `subscriptions`, `billingCheckoutLocks`, and `billingEvents` for Razorpay state, atomic checkout creation, and webhook idempotency
 - `adminLoginAttempts` and `adminAuditLogs` for admin abuse prevention and privileged-operation traceability; neither table grants identity or access
 - `announcements` for prioritized and optionally scheduled top bars, floating banners, and popup notices with validated presentation settings managed through the admin workspace
 
@@ -20,7 +20,7 @@ Every task has a required `goalId`. Free accounts are limited to three active go
 ## External systems
 
 - Gemini supplies validated structured operator turns; a deterministic implementation keeps chat useful when Gemini is unavailable.
-- Razorpay creates checkout sessions and sends signature-verified, idempotent subscription webhooks.
+- Razorpay hosts payment checkout and sends signature-verified, idempotent subscription webhooks. Checkout creation is authenticated, same-origin, POST-only, and resolves provider plan IDs and amounts exclusively on the server.
 - Google OAuth is the only enabled user sign-in provider.
 
 ## Reliability rules
@@ -31,6 +31,8 @@ Every task has a required `goalId`. Free accounts are limited to three active go
 - Account export contains the account, chats, goals, tasks, and subscriptions.
 - Verified deletion removes all user-owned product data before deleting the user.
 - Seed and migration functions are internal and idempotent.
+- Paid entitlement changes only when a signed Razorpay event matches a subscription created by the server, its owner, and its exact configured provider plan ID. Browser-supplied amounts, plan IDs, subscription IDs, and entitlement state are never trusted.
+- Subscription cancellation checks the signed-in owner, changes Razorpay first, and leaves local entitlement unchanged until the provider webhook confirms the lifecycle change.
 
 ## Deployment checklist
 
@@ -38,4 +40,4 @@ Every task has a required `goalId`. Free accounts are limited to three active go
 2. Run `npm run verify` and `npm run build`.
 3. Deploy Convex before the matching Next.js release.
 4. Test Google sign-in, chat, task approval, task editing, goal limits, goal completion, export, and deletion with a disposable account.
-5. Test the complete Razorpay test-mode lifecycle and duplicate webhook deliveries before enabling paid checkout.
+5. Test checkout creation, abandoned-checkout resume, cancellation, every allowed lifecycle event, invalid signatures, plan-ID mismatches, and duplicate webhook deliveries in Razorpay test mode before enabling live checkout.

@@ -88,6 +88,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
   const searchParams = useSearchParams()
   const [isSigningOut, setIsSigningOut] = useState(false)
   const isChat = pathname.startsWith("/chat")
+  const isSettings = pathname.startsWith("/settings")
   const activeConversationId = searchParams.get("conversation")
   const displayName = user.name ?? "GrowthAI member"
   const displayEmail = user.email ?? ""
@@ -225,7 +226,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
         </Sidebar>
 
         <SidebarInset className={cn("min-h-svh bg-[#fafafa]", isChat && "h-svh overflow-hidden bg-[#171717]")}>
-          {!isChat ? <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-neutral-200 px-3 backdrop-blur sm:px-5">
+          {!isChat && !isSettings ? <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-neutral-200 px-3 backdrop-blur sm:px-5">
             <SidebarTrigger className="size-9 rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-800 md:hidden" />
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-neutral-900">{currentTitle(pathname)}</p>
@@ -233,7 +234,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
             </div>
           </header> : null}
 
-          <main className={cn("flex-1", isChat ? "min-h-0 overflow-hidden p-0" : "p-4 sm:p-6 lg:p-8")}>{children}</main>
+          <main className={cn("flex-1", isChat ? "min-h-0 overflow-hidden p-0" : isSettings ? "min-h-svh p-0" : "p-4 sm:p-6 lg:p-8")}>{children}</main>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>

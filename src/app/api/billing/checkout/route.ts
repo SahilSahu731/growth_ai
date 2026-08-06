@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/auth"
 import { beginBillingCheckout, completeBillingCheckout, releaseBillingCheckout } from "@/lib/data/account"
-import { isAllowedRazorpayCheckoutUrl, isTrustedBillingRequest, paidPlanConfig, type PaidPlanId } from "@/lib/billing/razorpay"
+import { isAllowedRazorpayCheckoutUrl, isRazorpaySubscriptionId, isTrustedBillingRequest, paidPlanConfig, type PaidPlanId } from "@/lib/billing/razorpay"
 
 export const runtime = "nodejs"
 
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(15_000),
     })
     const result = await response.json().catch(() => null) as { id?: string; short_url?: string; error?: { description?: string } } | null
-    if (!response.ok || !result?.id || !result.short_url || !isAllowedRazorpayCheckoutUrl(result.short_url)) {
+    if (!response.ok || !isRazorpaySubscriptionId(result?.id) || !result.short_url || !isAllowedRazorpayCheckoutUrl(result.short_url)) {
       console.error("Razorpay checkout failed", response.status, result?.error?.description)
       await releaseBillingCheckout(session.user.id, lock.token)
       return NextResponse.json({ error: "Checkout could not be started." }, { status: 502 })

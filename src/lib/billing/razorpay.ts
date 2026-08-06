@@ -31,7 +31,7 @@ export function isAllowedRazorpayCheckoutUrl(value: string) {
   }
 }
 
-export function isTrustedBillingRequest(input: { requestUrl: string; origin: string | null; fetchSite: string | null; allowedOrigins: Array<string | undefined> }) {
+export function isTrustedMutationRequest(input: { requestUrl: string; origin: string | null; fetchSite: string | null; allowedOrigins: Array<string | undefined> }) {
   if (input.fetchSite === "cross-site") return false
   if (!input.origin) return false
   const candidates = new Set<string>()
@@ -42,6 +42,8 @@ export function isTrustedBillingRequest(input: { requestUrl: string; origin: str
   }
   try { return candidates.has(new URL(input.origin).origin) } catch { return false }
 }
+
+export const isTrustedBillingRequest = isTrustedMutationRequest
 
 export function isRazorpaySubscriptionId(value: string | undefined): value is string {
   return Boolean(value && /^sub_[A-Za-z0-9]{6,100}$/.test(value))

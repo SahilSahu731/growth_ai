@@ -8,6 +8,7 @@ GrowthAI is a chat-first AI growth operator for the whole of life—not a journa
 - AI-led discovery, quick-reply choices, bounded task proposals, explicit approval, and a persistent Today list.
 - Editable goals and task cards that stay synchronized across chat, Goals, Tasks, and weekly reports.
 - A database-enforced three-goal limit on Free, with expanded goal capacity on paid plans.
+- In-context Pro upgrade dialogs, a full pricing comparison, and an authenticated billing workspace with checkout resume, subscription history, and cancellation.
 - Timezone-aware planning, account export, and verified account deletion.
 - A separately authenticated admin workspace for users, content, access, plans, billing visibility, platform metrics, and privileged audit history.
 - Admin-managed, scheduled global announcements with top-bar, floating-banner, and popup placements, safe color controls, and live previews.
@@ -49,7 +50,8 @@ npm run build
 
 ## Operations
 
-- Send Razorpay subscription events to `/api/webhooks/razorpay`.
+- Send Razorpay subscription events to `/api/webhooks/razorpay`; configure only the subscription events accepted by the application.
 - Use distinct secrets for development, preview, and production.
+- Complete a full Razorpay test-mode lifecycle before using live keys. Paid access is granted only by matching, signed provider webhooks—not by the checkout redirect.
 
 See [roadmap.md](./roadmap.md) and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
