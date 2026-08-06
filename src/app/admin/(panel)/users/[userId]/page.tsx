@@ -1,0 +1,45 @@
+import Link from "next/link"
+import { notFound } from "next/navigation"
+import { ArrowLeft, CalendarDays, CircleUserRound, CreditCard, MessageSquareText, Target, Workflow } from "lucide-react"
+
+import { AdminAccessControl, AdminDeleteConversationForm, AdminDeleteUserForm, AdminGoalStatusForm, AdminTaskStatusForm, AdminUserEditor } from "@/components/admin/admin-forms"
+import { getAdminUserDetail } from "@/lib/data/admin"
+import { requireAdminPageSession } from "@/lib/admin/page-auth"
+
+export const metadata = { title: "Manage user" }
+
+function date(value: string) {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
+}
+
+function Panel({ title, description, children, className = "" }: { title: string; description?: string; children: React.ReactNode; className?: string }) {
+  return <section className={`rounded-2xl border border-white/8 bg-white/[.025] p-5 sm:p-6 ${className}`}><div className="mb-5"><h2 className="text-sm font-bold text-white">{title}</h2>{description ? <p className="mt-1 text-xs text-neutral-600">{description}</p> : null}</div>{children}</section>
+}
+
+export default async function AdminUserPage({ params }: { params: Promise<{ userId: string }> }) {
+  await requireAdminPageSession()
+  const { userId } = await params
+  const detail = await getAdminUserDetail(userId)
+  if (!detail) notFound()
+  const { user } = detail
+  const counts = [{ label: "Conversations", value: detail.counts.conversations, icon: MessageSquareText }, { label: "Messages", value: detail.counts.messages, icon: Workflow }, { label: "Goals", value: detail.counts.goals, icon: Target }, { label: "Tasks", value: detail.counts.tasks, icon: CalendarDays }]
+  return <div className="space-y-6"><Link href="/admin/users" className="inline-flex items-center gap-2 text-xs font-bold text-neutral-500 hover:text-white"><ArrowLeft className="size-4" />Back to users</Link><section className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-4"><span className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-lg font-black text-primary">{user.name.slice(0, 2).toUpperCase()}</span><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">{user.name}</h1><span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase ${user.deletedAt ? "bg-red-500/10 text-red-300" : "bg-emerald-500/10 text-emerald-400"}`}>{user.deletedAt ? "Suspended" : "Active"}</span></div><p className="mt-1 text-xs text-neutral-500">{user.email} · {user.authProvider} · joined {date(user.createdAt)}</p></div></div><span className="self-start rounded-xl border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold capitalize text-primary sm:self-auto">{user.planTier} plan</span></section>
+
+  <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{counts.map((item) => <div key={item.label} className="rounded-2xl border border-white/8 bg-white/[.025] p-4"><item.icon className="size-4 text-neutral-600" /><p className="mt-4 text-xl font-black text-white">{item.value}</p><p className="mt-1 text-[10px] text-neutral-600">{item.label}</p></div>)}</section>
+
+  <section className="grid gap-5 lg:grid-cols-2"><Panel title="Account & entitlement" description="Changes take effect on the next product request."><AdminUserEditor user={user} /></Panel><Panel title="Access control" description="Suspend authentication without destroying account data."><AdminAccessControl user={user} /><div className="mt-5 border-t border-white/8 pt-5 text-xs text-neutral-600"><p>Timezone: <span className="text-neutral-400">{user.timezone ?? "UTC"}</span></p><p className="mt-1">Coach tone: <span className="capitalize text-neutral-400">{user.coachTone ?? "balanced"}</span></p></div></Panel></section>
+
+  <Panel title="Goals" description="Changing a goal away from active dismisses its remaining open tasks.">{detail.goals.length ? <div className="space-y-3">{detail.goals.map((goal) => <article key={goal.id} className="rounded-xl border border-white/8 bg-black/10 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><p className="text-xs font-bold text-neutral-200">{goal.title}</p><p className="mt-1 line-clamp-2 text-[10px] leading-5 text-neutral-600">{goal.description || "No description"}</p></div><AdminGoalStatusForm userId={user.id} goalId={goal.id} status={goal.status} /></div></article>)}</div> : <Empty icon={Target} text="No goals created." />}</Panel>
+
+  <Panel title="Tasks" description="Up to 100 recently updated tasks are shown.">{detail.tasks.length ? <div className="space-y-3">{detail.tasks.map((task) => <article key={task.id} className="rounded-xl border border-white/8 bg-black/10 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><p className="text-xs font-bold text-neutral-200">{task.title}</p><p className="mt-1 text-[10px] text-neutral-600">Scheduled {task.scheduledFor} · updated {date(task.updatedAt)}</p></div><AdminTaskStatusForm userId={user.id} taskId={task.id} status={task.status} /></div></article>)}</div> : <Empty icon={CalendarDays} text="No tasks created." />}</Panel>
+
+  <section className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]"><Panel title="Conversations" description="Deletion removes the conversation and its stored messages.">{detail.conversations.length ? <div className="space-y-3">{detail.conversations.map((conversation) => <article key={conversation.id} className="flex flex-col gap-3 rounded-xl border border-white/8 bg-black/10 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold text-neutral-200">{conversation.title}</p><p className="mt-1 text-[10px] capitalize text-neutral-600">{conversation.state.replaceAll("_", " ")} · {date(conversation.updatedAt)}</p></div><AdminDeleteConversationForm userId={user.id} conversationId={conversation.id} title={conversation.title} /></article>)}</div> : <Empty icon={MessageSquareText} text="No conversations created." />}</Panel><Panel title="Subscriptions" description="Provider state is webhook-owned and read-only here.">{detail.subscriptions.length ? <div className="space-y-3">{detail.subscriptions.map((subscription) => <article key={subscription.id} className="rounded-xl border border-white/8 bg-black/10 p-4"><div className="flex items-center justify-between"><span className="flex size-8 items-center justify-center rounded-lg bg-primary/8"><CreditCard className="size-4 text-primary" /></span><span className="rounded-full bg-white/5 px-2 py-1 text-[9px] font-bold uppercase text-neutral-400">{subscription.status}</span></div><p className="mt-4 text-xs font-bold capitalize text-neutral-200">{subscription.planTier} · {(subscription.amount / 100).toLocaleString("en-IN", { style: "currency", currency: subscription.currency })}</p><p className="mt-1 truncate font-mono text-[9px] text-neutral-700">{subscription.providerSubscriptionId}</p></article>)}</div> : <Empty icon={CreditCard} text="No subscriptions." />}</Panel></section>
+
+  <Panel title="Recent message content" description="Limited previews support abuse investigation and operational support. Access to this page is protected and auditable.">{detail.messages.length ? <div className="space-y-2">{detail.messages.slice(0, 20).map((message) => <article key={message.id} className="rounded-xl border border-white/8 bg-black/10 p-3"><div className="flex items-center justify-between"><span className={`text-[9px] font-bold uppercase ${message.role === "assistant" ? "text-primary" : "text-neutral-400"}`}>{message.role}</span><span className="text-[9px] text-neutral-700">{date(message.createdAt)}</span></div><p className="mt-2 line-clamp-3 text-xs leading-5 text-neutral-500">{message.content}</p></article>)}</div> : <Empty icon={CircleUserRound} text="No messages." />}</Panel>
+
+  <Panel title="Danger zone" description="Permanent deletion cannot be reversed." className="border-red-500/15"><AdminDeleteUserForm user={user} /></Panel></div>
+}
+
+function Empty({ icon: Icon, text }: { icon: typeof Target; text: string }) {
+  return <div className="py-9 text-center"><Icon className="mx-auto size-5 text-neutral-700" /><p className="mt-2 text-xs text-neutral-600">{text}</p></div>
+}

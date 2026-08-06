@@ -131,4 +131,24 @@ export default defineSchema({
     createdAt: v.string(),
     processedAt: v.optional(v.string()),
   }).index("by_provider_event", ["providerEventId"]),
+
+  // Admin identity is deliberately not stored on user records. These tables
+  // support abuse prevention and an immutable operational trail for the
+  // environment-configured, separately authenticated administrator.
+  adminLoginAttempts: defineTable({
+    key: v.string(),
+    attempts: v.number(),
+    windowStartedAt: v.string(),
+    blockedUntil: v.optional(v.string()),
+    updatedAt: v.string(),
+  }).index("by_key", ["key"]),
+
+  adminAuditLogs: defineTable({
+    actor: v.string(),
+    action: v.string(),
+    targetType: v.string(),
+    targetId: v.optional(v.string()),
+    summary: v.string(),
+    createdAt: v.string(),
+  }).index("by_created_at", ["createdAt"]),
 })

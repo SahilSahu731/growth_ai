@@ -28,11 +28,12 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider === "google" && user.email) {
         try {
-          await upsertOAuthUser({
+          const appUser = await upsertOAuthUser({
             email: user.email,
             name: user.name,
             provider: "google",
           })
+          if (appUser.deletedAt) return false
         } catch (error) {
           console.error("Failed to persist OAuth user", error)
           return false
@@ -42,23 +43,19 @@ export const authOptions: NextAuthOptions = {
       return true
     },
     async jwt({ token, user }) {
-      if (user?.email) {
-        const appUser = await findUserByEmail(user.email)
-
-        token.userId = appUser?.id ?? user.id
-      } else if (!token.userId && typeof token.email === "string") {
-        const appUser = await findUserByEmail(token.email)
-
-        if (appUser) {
-          token.userId = appUser.id
-        }
+      const email = user?.email ?? (typeof token.email === "string" ? token.email : null)
+      if (email) {
+        const appUser = await findUserByEmail(email)
+        // Re-check the backing account on every session read so an admin access
+        // suspension takes effect without waiting for the JWT to expire.
+        token.userId = appUser && !appUser.deletedAt ? appUser.id : undefined
       }
 
       return token
     },
     async session({ session, token }) {
-      if (session.user && token.userId) {
-        session.user.id = token.userId
+      if (session.user) {
+        session.user.id = token.userId ?? ""
       }
 
       return session

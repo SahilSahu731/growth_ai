@@ -2,7 +2,7 @@ import "server-only"
 
 import { convexMutation, convexQuery } from "@/lib/convex-server"
 
-export type AppUser = { id: string; name: string; email: string; passwordHash: string | null; authProvider: string; planTier: UserPlanTier; createdAt: string; updatedAt: string }
+export type AppUser = { id: string; name: string; email: string; passwordHash: string | null; authProvider: string; planTier: UserPlanTier; deletedAt: string | null; createdAt: string; updatedAt: string }
 
 export type UserPlanTier = "free" | "pro" | "founder" | "team"
 export async function findUserByEmail(email: string): Promise<AppUser | null> {

@@ -12,6 +12,7 @@ function publicUser(user: any) {
     passwordHash: user.passwordHash ?? null,
     authProvider: user.authProvider,
     planTier: user.planTier,
+    deletedAt: user.deletedAt ?? null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   }

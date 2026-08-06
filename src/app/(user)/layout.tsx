@@ -11,7 +11,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } }
 export default async function UserLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user) {
+  if (!session?.user?.id) {
     redirect("/login")
   }
 
