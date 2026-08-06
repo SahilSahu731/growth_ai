@@ -5,6 +5,7 @@ import { v } from "convex/values"
 import { requireServer } from "./lib/serverAuth"
 
 const planTier = v.union(v.literal("free"), v.literal("pro"), v.literal("founder"), v.literal("team"))
+const announcementTone = v.union(v.literal("info"), v.literal("offer"), v.literal("warning"), v.literal("critical"))
 
 function clean(document: any) {
   if (!document) return null
@@ -400,5 +401,108 @@ export const getAuditLogs = query({
       page,
       pages: Math.max(1, Math.ceil(logs.length / pageSize)),
     }
+  },
+})
+
+function announcementFields(args: {
+  message: string
+  tone: "info" | "offer" | "warning" | "critical"
+  linkLabel?: string
+  linkUrl?: string
+  startsAt?: string
+  endsAt?: string
+  priority: number
+  dismissible: boolean
+  isActive: boolean
+}) {
+  const message = args.message.replace(/\s+/g, " ").trim().slice(0, 240)
+  if (message.length < 3) throw new Error("Announcement must contain at least 3 characters")
+  const linkLabel = args.linkLabel?.replace(/\s+/g, " ").trim().slice(0, 40) || undefined
+  const linkUrl = args.linkUrl?.trim().slice(0, 500) || undefined
+  if (Boolean(linkLabel) !== Boolean(linkUrl)) throw new Error("Link text and URL must be provided together")
+  if (linkUrl && !((linkUrl.startsWith("/") && !linkUrl.startsWith("//")) || linkUrl.startsWith("https://"))) {
+    throw new Error("Announcement links must use HTTPS or a local path")
+  }
+  const startsAt = args.startsAt || undefined
+  const endsAt = args.endsAt || undefined
+  if (startsAt && Number.isNaN(Date.parse(startsAt))) throw new Error("Start time is invalid")
+  if (endsAt && Number.isNaN(Date.parse(endsAt))) throw new Error("End time is invalid")
+  if (startsAt && endsAt && startsAt >= endsAt) throw new Error("End time must be after start time")
+  return {
+    message,
+    tone: args.tone,
+    linkLabel,
+    linkUrl,
+    startsAt,
+    endsAt,
+    priority: Math.min(100, Math.max(0, Math.round(args.priority))),
+    dismissible: args.dismissible,
+    isActive: args.isActive,
+  }
+}
+
+export const listAnnouncements = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireServer(ctx)
+    const rows = await ctx.db.query("announcements").collect()
+    return rows.sort((left: any, right: any) => right.priority - left.priority || right.updatedAt.localeCompare(left.updatedAt)).map(clean)
+  },
+})
+
+export const createAnnouncement = mutation({
+  args: {
+    actor: v.string(), message: v.string(), tone: announcementTone,
+    linkLabel: v.optional(v.string()), linkUrl: v.optional(v.string()),
+    startsAt: v.optional(v.string()), endsAt: v.optional(v.string()),
+    priority: v.number(), dismissible: v.boolean(), isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireServer(ctx)
+    const timestamp = new Date().toISOString()
+    const legacyId = crypto.randomUUID()
+    const fields = announcementFields(args)
+    const id = await ctx.db.insert("announcements", { legacyId, ...fields, createdAt: timestamp, updatedAt: timestamp })
+    await writeAudit(ctx, {
+      actor: args.actor, action: "announcement.create", targetType: "announcement", targetId: legacyId,
+      summary: `Created ${fields.tone} announcement “${fields.message}”.`,
+    })
+    return clean(await ctx.db.get(id))
+  },
+})
+
+export const updateAnnouncement = mutation({
+  args: {
+    actor: v.string(), announcementId: v.string(), message: v.string(), tone: announcementTone,
+    linkLabel: v.optional(v.string()), linkUrl: v.optional(v.string()),
+    startsAt: v.optional(v.string()), endsAt: v.optional(v.string()),
+    priority: v.number(), dismissible: v.boolean(), isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireServer(ctx)
+    const row = await ctx.db.query("announcements").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.announcementId)).unique()
+    if (!row) throw new Error("Announcement not found")
+    const fields = announcementFields(args)
+    await ctx.db.patch(row._id, { ...fields, updatedAt: new Date().toISOString() })
+    await writeAudit(ctx, {
+      actor: args.actor, action: "announcement.update", targetType: "announcement", targetId: args.announcementId,
+      summary: `Updated ${fields.tone} announcement “${fields.message}” (${fields.isActive ? "active" : "inactive"}).`,
+    })
+    return clean(await ctx.db.get(row._id))
+  },
+})
+
+export const deleteAnnouncement = mutation({
+  args: { actor: v.string(), announcementId: v.string() },
+  handler: async (ctx, args) => {
+    await requireServer(ctx)
+    const row = await ctx.db.query("announcements").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.announcementId)).unique()
+    if (!row) throw new Error("Announcement not found")
+    await ctx.db.delete(row._id)
+    await writeAudit(ctx, {
+      actor: args.actor, action: "announcement.delete", targetType: "announcement", targetId: args.announcementId,
+      summary: `Deleted announcement “${row.message}”.`,
+    })
+    return true
   },
 })

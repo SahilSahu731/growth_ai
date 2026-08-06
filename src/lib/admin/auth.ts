@@ -1,53 +1,32 @@
 import "server-only"
 
-import { createHash, timingSafeEqual } from "node:crypto"
+import { createHash } from "node:crypto"
 import { compare } from "bcryptjs"
 import { cookies, headers } from "next/headers"
 
 import { ADMIN_SESSION_TTL_SECONDS, createAdminSessionToken, verifyAdminSessionToken } from "@/lib/admin/session-token"
+import { constantTimeTextEqual, matchesAdminPassword, resolveAdminCredentialConfig, type ResolvedAdminCredentialConfig } from "@/lib/admin/credential-config"
 
 const COOKIE_NAME = "growthai_admin_session"
 const DUMMY_HASH = "$2b$12$Jbl4/KinmOHPD5.VRHGjNeB3ysEaH4Oi.9M837kszKy4bA03jAtFm"
 
-type AdminConfig = {
-  email: string
-  passwordHash: string
-  loginSecretHash: string
-  sessionSecret: string
-  sessionVersion: string
-}
-
 export type AdminSession = { email: string; expiresAt: number }
 
-function config(): AdminConfig | null {
-  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase() ?? ""
-  const passwordHash = process.env.ADMIN_PASSWORD_HASH?.trim() ?? ""
-  const loginSecretHash = process.env.ADMIN_LOGIN_SECRET_HASH?.trim() ?? ""
-  const sessionSecret = process.env.ADMIN_SESSION_SECRET?.trim() ?? ""
-  const sessionVersion = process.env.ADMIN_SESSION_VERSION?.trim() || "1"
-  if (!email || !passwordHash || !loginSecretHash || sessionSecret.length < 32) return null
-  if (!passwordHash.startsWith("$2") || !loginSecretHash.startsWith("$2")) return null
-  return { email, passwordHash, loginSecretHash, sessionSecret, sessionVersion }
-}
-
-function equalText(left: string, right: string): boolean {
-  const leftDigest = createHash("sha256").update(left).digest()
-  const rightDigest = createHash("sha256").update(right).digest()
-  return timingSafeEqual(leftDigest, rightDigest)
+function config(): ResolvedAdminCredentialConfig | null {
+  return resolveAdminCredentialConfig(process.env)
 }
 
 export function isAdminConfigured(): boolean {
   return config() !== null
 }
 
-export async function verifyAdminCredentials(input: { email: string; password: string; loginSecret: string }): Promise<boolean> {
+export async function verifyAdminCredentials(input: { email: string; password: string }): Promise<boolean> {
   const current = config()
-  const [passwordMatches, secretMatches] = await Promise.all([
-    compare(input.password, current?.passwordHash ?? DUMMY_HASH).catch(() => false),
-    compare(input.loginSecret, current?.loginSecretHash ?? DUMMY_HASH).catch(() => false),
-  ])
-  const emailMatches = equalText(input.email.trim().toLowerCase(), current?.email ?? "invalid@growthai.local")
-  return Boolean(current && emailMatches && passwordMatches && secretMatches)
+  const passwordMatches = current
+    ? await matchesAdminPassword(input.password, current)
+    : await compare(input.password, DUMMY_HASH).catch(() => false)
+  const emailMatches = constantTimeTextEqual(input.email.trim().toLowerCase(), current?.email ?? "invalid@growthai.local")
+  return Boolean(current && emailMatches && passwordMatches)
 }
 
 export async function createAdminSession(): Promise<AdminSession> {
@@ -94,15 +73,14 @@ export async function adminLoginFingerprint(): Promise<string> {
   const address = forwardedFor || requestHeaders.get("x-real-ip") || "unknown"
   const userAgent = requestHeaders.get("user-agent")?.slice(0, 200) || "unknown"
   const salt = config()?.sessionSecret ?? process.env.AUTH_SECRET ?? "growthai-unconfigured-admin"
-  return createHash("sha256").update(`${salt}|${address}|${userAgent}`).digest("hex")
+  return createHash("sha256").update(`email-password-v2|${salt}|${address}|${userAgent}`).digest("hex")
 }
 
 export function adminCredentialHealth() {
   const current = config()
   return {
     configured: Boolean(current),
-    passwordHashed: Boolean(process.env.ADMIN_PASSWORD_HASH?.startsWith("$2")),
-    loginSecretHashed: Boolean(process.env.ADMIN_LOGIN_SECRET_HASH?.startsWith("$2")),
+    passwordHashed: Boolean(!process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD_HASH?.startsWith("$2")),
     sessionSecretStrong: (process.env.ADMIN_SESSION_SECRET?.length ?? 0) >= 32,
     sessionHours: ADMIN_SESSION_TTL_SECONDS / 3600,
   }

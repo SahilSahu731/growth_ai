@@ -10,6 +10,7 @@ GrowthAI is a chat-first AI growth operator for the whole of life—not a journa
 - A database-enforced three-goal limit on Free, with expanded goal capacity on paid plans.
 - Timezone-aware planning, account export, and verified account deletion.
 - A separately authenticated admin workspace for users, content, access, plans, billing visibility, platform metrics, and privileged audit history.
+- Admin-managed, scheduled global announcement banners for offers, warnings, launches, and service notices.
 - Gemini structured operator responses with a fully usable deterministic fallback and explicit safeguards against shame, diagnosis, therapy impersonation, and high-stakes directives.
 
 The visual system is informed by the locally supplied Timmo reference: a dark editorial canvas, focused typography, subtle grid backgrounds, soft bordered cards, bento layouts, and restrained motion. GrowthAI retains its own identity and content.
@@ -35,7 +36,7 @@ Configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the root `.env.local`
 
 Run `npm run convex:dev` to create or connect a development database and deploy the schema/functions. Convex functions called by the app require the trusted Next.js server identity; the deployment token stays server-only. Follow [Convex setup](./docs/CONVEX_SETUP.md) to generate that token safely and configure production.
 
-The admin workspace is available at `/admin` after its independent email, password hash, login-secret hash, and session signing key are configured. It does not use member roles or member sessions. Follow [Admin setup](./docs/ADMIN_SETUP.md) before deploying it.
+The admin workspace is available at `/admin` after its independent email, password, and session signing key are configured. It does not use member roles or member sessions. Follow [Admin setup](./docs/ADMIN_SETUP.md) before deploying it.
 
 ## Verification
 

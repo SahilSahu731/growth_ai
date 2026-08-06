@@ -4,15 +4,16 @@
 
 NextAuth owns Google authentication and server sessions. Next.js server actions and route handlers are the application boundary. They call public Convex functions using a server-only deployment credential and a fixed server identity. Every callable function rejects requests without that identity, and resource mutations also verify user ownership.
 
-Administration is a separate identity boundary and never uses a `users.role` field or a member session. Three environment-backed credentials (email, bcrypt password hash, and bcrypt login-secret hash) create a short-lived signed cookie scoped to `/admin`. Protected pages and mutations each re-check that session. Convex-backed throttling limits login attempts, and privileged changes are recorded in `adminAuditLogs`. Member suspension is re-evaluated whenever NextAuth resolves a session, so access removal takes effect without waiting for JWT expiry.
+Administration is a separate identity boundary and never uses a `users.role` field or a member session. Environment-backed email and password authentication creates a short-lived signed cookie scoped to `/admin`. Protected pages and mutations each re-check that session. Convex-backed throttling limits login attempts, and privileged changes are recorded in `adminAuditLogs`. Member suspension is re-evaluated whenever NextAuth resolves a session, so access removal takes effect without waiting for JWT expiry.
 
-Convex stores only seven product tables:
+Convex stores the core product and operational tables:
 
 - `users` for identity, plan, timezone, and AI conversation preferences
 - `operatorConversations` and `operatorMessages` for chat history and structured proposals
 - `operatorGoals` and `operatorTasks` for the synchronized execution model
 - `subscriptions` and `billingEvents` for Razorpay state and webhook idempotency
 - `adminLoginAttempts` and `adminAuditLogs` for admin abuse prevention and privileged-operation traceability; neither table grants identity or access
+- `announcements` for prioritized and optionally scheduled global site notices managed through the admin workspace
 
 Every task has a required `goalId`. Free accounts are limited to three active goals inside the database mutation, so the rule cannot be bypassed through the interface. Completing or archiving a goal dismisses its remaining open tasks in the same transaction.
 

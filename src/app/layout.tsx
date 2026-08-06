@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import "./globals.css"
+import { GlobalAnnouncementBanner } from "@/components/global-announcement-banner"
 
 const siteUrl = new URL(process.env.NEXT_PUBLIC_APP_URL?.startsWith("http") ? process.env.NEXT_PUBLIC_APP_URL : "https://growth.ai")
 const description = "GrowthAI is a private AI growth coach that turns honest conversations into clear goals, focused tasks, and useful weekly reflection."
@@ -40,5 +41,5 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className="font-sans"><body className="antialiased">{children}</body></html>
+  return <html lang="en" className="font-sans"><body className="antialiased"><GlobalAnnouncementBanner />{children}</body></html>
 }

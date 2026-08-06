@@ -151,4 +151,21 @@ export default defineSchema({
     summary: v.string(),
     createdAt: v.string(),
   }).index("by_created_at", ["createdAt"]),
+
+  announcements: defineTable({
+    legacyId: v.string(),
+    message: v.string(),
+    tone: v.union(v.literal("info"), v.literal("offer"), v.literal("warning"), v.literal("critical")),
+    linkLabel: v.optional(v.string()),
+    linkUrl: v.optional(v.string()),
+    startsAt: v.optional(v.string()),
+    endsAt: v.optional(v.string()),
+    priority: v.number(),
+    dismissible: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_legacy_id", ["legacyId"])
+    .index("by_active", ["isActive"]),
 })

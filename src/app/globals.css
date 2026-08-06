@@ -129,6 +129,10 @@
 .auth-card { background-image: radial-gradient(circle at 85% 0%, rgba(114, 231, 255, .06), transparent 28%); }
 .auth-input { transition: border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease, transform 220ms ease; }
 .auth-input:focus { border-color: rgba(114, 231, 255, .42); background-color: rgba(255,255,255,.075); box-shadow: 0 0 0 4px rgba(114, 231, 255, .06); transform: translateY(-1px); }
+.admin-login-input { color: #f5f7f7 !important; -webkit-text-fill-color: #f5f7f7; }
+.admin-login-input:-webkit-autofill,
+.admin-login-input:-webkit-autofill:hover,
+.admin-login-input:-webkit-autofill:focus { -webkit-text-fill-color: #f5f7f7; caret-color: #72e7ff; box-shadow: 0 0 0 1000px #111719 inset; transition: background-color 9999s ease-out 0s; }
 .auth-grain { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E"); }
 .auth-background-image { animation: auth-background-breathe 22s ease-in-out infinite; }
 .auth-panel { background-image: radial-gradient(circle at 0% 0%, rgba(114, 231, 255, .08), transparent 34%); }

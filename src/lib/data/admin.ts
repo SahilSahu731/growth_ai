@@ -120,3 +120,36 @@ export type AdminAuditPage = {
 export function getAdminAuditLogs(page: number, pageSize = 30): Promise<AdminAuditPage> {
   return convexQuery("admin:getAuditLogs", { page, pageSize })
 }
+
+export type AdminAnnouncement = {
+  id: string
+  message: string
+  tone: "info" | "offer" | "warning" | "critical"
+  linkLabel?: string
+  linkUrl?: string
+  startsAt?: string
+  endsAt?: string
+  priority: number
+  dismissible: boolean
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export function listAdminAnnouncements(): Promise<AdminAnnouncement[]> {
+  return convexQuery("admin:listAnnouncements", {})
+}
+
+type AnnouncementInput = Omit<AdminAnnouncement, "id" | "createdAt" | "updatedAt">
+
+export function createAdminAnnouncement(input: AnnouncementInput & { actor: string }): Promise<AdminAnnouncement> {
+  return convexMutation("admin:createAnnouncement", input)
+}
+
+export function updateAdminAnnouncement(input: AnnouncementInput & { actor: string; announcementId: string }): Promise<AdminAnnouncement> {
+  return convexMutation("admin:updateAnnouncement", input)
+}
+
+export function deleteAdminAnnouncement(input: { actor: string; announcementId: string }): Promise<boolean> {
+  return convexMutation("admin:deleteAnnouncement", input)
+}
