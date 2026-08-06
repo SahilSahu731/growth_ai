@@ -1,6 +1,7 @@
 import "server-only"
 
 import { convexMutation, convexQuery } from "@/lib/convex-server"
+import type { AnnouncementAlignment, AnnouncementButtonStyle, AnnouncementPlacement, AnnouncementTone } from "@/lib/announcement-types"
 
 export type AdminPlanTier = "free" | "pro" | "founder" | "team"
 
@@ -123,8 +124,16 @@ export function getAdminAuditLogs(page: number, pageSize = 30): Promise<AdminAud
 
 export type AdminAnnouncement = {
   id: string
+  title?: string
   message: string
-  tone: "info" | "offer" | "warning" | "critical"
+  tone: AnnouncementTone
+  placement?: AnnouncementPlacement
+  backgroundColor?: string
+  textColor?: string
+  accentColor?: string
+  alignment?: AnnouncementAlignment
+  buttonStyle?: AnnouncementButtonStyle
+  showIcon?: boolean
   linkLabel?: string
   linkUrl?: string
   startsAt?: string
@@ -140,7 +149,25 @@ export function listAdminAnnouncements(): Promise<AdminAnnouncement[]> {
   return convexQuery("admin:listAnnouncements", {})
 }
 
-type AnnouncementInput = Omit<AdminAnnouncement, "id" | "createdAt" | "updatedAt">
+type AnnouncementInput = {
+  title?: string
+  message: string
+  tone: AnnouncementTone
+  placement: AnnouncementPlacement
+  backgroundColor: string
+  textColor: string
+  accentColor: string
+  alignment: AnnouncementAlignment
+  buttonStyle: AnnouncementButtonStyle
+  showIcon: boolean
+  linkLabel?: string
+  linkUrl?: string
+  startsAt?: string
+  endsAt?: string
+  priority: number
+  dismissible: boolean
+  isActive: boolean
+}
 
 export function createAdminAnnouncement(input: AnnouncementInput & { actor: string }): Promise<AdminAnnouncement> {
   return convexMutation("admin:createAnnouncement", input)

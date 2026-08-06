@@ -154,8 +154,16 @@ export default defineSchema({
 
   announcements: defineTable({
     legacyId: v.string(),
+    title: v.optional(v.string()),
     message: v.string(),
     tone: v.union(v.literal("info"), v.literal("offer"), v.literal("warning"), v.literal("critical")),
+    placement: v.optional(v.union(v.literal("top_bar"), v.literal("floating_banner"), v.literal("popup"))),
+    backgroundColor: v.optional(v.string()),
+    textColor: v.optional(v.string()),
+    accentColor: v.optional(v.string()),
+    alignment: v.optional(v.union(v.literal("left"), v.literal("center"))),
+    buttonStyle: v.optional(v.union(v.literal("solid"), v.literal("outline"))),
+    showIcon: v.optional(v.boolean()),
     linkLabel: v.optional(v.string()),
     linkUrl: v.optional(v.string()),
     startsAt: v.optional(v.string()),

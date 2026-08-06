@@ -10,7 +10,7 @@ GrowthAI is a chat-first AI growth operator for the whole of life—not a journa
 - A database-enforced three-goal limit on Free, with expanded goal capacity on paid plans.
 - Timezone-aware planning, account export, and verified account deletion.
 - A separately authenticated admin workspace for users, content, access, plans, billing visibility, platform metrics, and privileged audit history.
-- Admin-managed, scheduled global announcement banners for offers, warnings, launches, and service notices.
+- Admin-managed, scheduled global announcements with top-bar, floating-banner, and popup placements, safe color controls, and live previews.
 - Gemini structured operator responses with a fully usable deterministic fallback and explicit safeguards against shame, diagnosis, therapy impersonation, and high-stakes directives.
 
 The visual system is informed by the locally supplied Timmo reference: a dark editorial canvas, focused typography, subtle grid backgrounds, soft bordered cards, bento layouts, and restrained motion. GrowthAI retains its own identity and content.

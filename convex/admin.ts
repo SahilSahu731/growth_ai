@@ -6,6 +6,9 @@ import { requireServer } from "./lib/serverAuth"
 
 const planTier = v.union(v.literal("free"), v.literal("pro"), v.literal("founder"), v.literal("team"))
 const announcementTone = v.union(v.literal("info"), v.literal("offer"), v.literal("warning"), v.literal("critical"))
+const announcementPlacement = v.union(v.literal("top_bar"), v.literal("floating_banner"), v.literal("popup"))
+const announcementAlignment = v.union(v.literal("left"), v.literal("center"))
+const announcementButtonStyle = v.union(v.literal("solid"), v.literal("outline"))
 
 function clean(document: any) {
   if (!document) return null
@@ -405,8 +408,16 @@ export const getAuditLogs = query({
 })
 
 function announcementFields(args: {
+  title?: string
   message: string
   tone: "info" | "offer" | "warning" | "critical"
+  placement: "top_bar" | "floating_banner" | "popup"
+  backgroundColor: string
+  textColor: string
+  accentColor: string
+  alignment: "left" | "center"
+  buttonStyle: "solid" | "outline"
+  showIcon: boolean
   linkLabel?: string
   linkUrl?: string
   startsAt?: string
@@ -415,6 +426,7 @@ function announcementFields(args: {
   dismissible: boolean
   isActive: boolean
 }) {
+  const title = args.title?.replace(/\s+/g, " ").trim().slice(0, 80) || undefined
   const message = args.message.replace(/\s+/g, " ").trim().slice(0, 240)
   if (message.length < 3) throw new Error("Announcement must contain at least 3 characters")
   const linkLabel = args.linkLabel?.replace(/\s+/g, " ").trim().slice(0, 40) || undefined
@@ -423,14 +435,26 @@ function announcementFields(args: {
   if (linkUrl && !((linkUrl.startsWith("/") && !linkUrl.startsWith("//")) || linkUrl.startsWith("https://"))) {
     throw new Error("Announcement links must use HTTPS or a local path")
   }
+  const colorPattern = /^#[0-9A-Fa-f]{6}$/
+  for (const [name, color] of [["Background", args.backgroundColor], ["Text", args.textColor], ["Accent", args.accentColor]] as const) {
+    if (!colorPattern.test(color)) throw new Error(`${name} color must be a 6-digit hex value`)
+  }
   const startsAt = args.startsAt || undefined
   const endsAt = args.endsAt || undefined
   if (startsAt && Number.isNaN(Date.parse(startsAt))) throw new Error("Start time is invalid")
   if (endsAt && Number.isNaN(Date.parse(endsAt))) throw new Error("End time is invalid")
   if (startsAt && endsAt && startsAt >= endsAt) throw new Error("End time must be after start time")
   return {
+    title,
     message,
     tone: args.tone,
+    placement: args.placement,
+    backgroundColor: args.backgroundColor.toUpperCase(),
+    textColor: args.textColor.toUpperCase(),
+    accentColor: args.accentColor.toUpperCase(),
+    alignment: args.alignment,
+    buttonStyle: args.buttonStyle,
+    showIcon: args.showIcon,
     linkLabel,
     linkUrl,
     startsAt,
@@ -452,7 +476,9 @@ export const listAnnouncements = query({
 
 export const createAnnouncement = mutation({
   args: {
-    actor: v.string(), message: v.string(), tone: announcementTone,
+    actor: v.string(), title: v.optional(v.string()), message: v.string(), tone: announcementTone,
+    placement: announcementPlacement, backgroundColor: v.string(), textColor: v.string(), accentColor: v.string(),
+    alignment: announcementAlignment, buttonStyle: announcementButtonStyle, showIcon: v.boolean(),
     linkLabel: v.optional(v.string()), linkUrl: v.optional(v.string()),
     startsAt: v.optional(v.string()), endsAt: v.optional(v.string()),
     priority: v.number(), dismissible: v.boolean(), isActive: v.boolean(),
@@ -473,7 +499,9 @@ export const createAnnouncement = mutation({
 
 export const updateAnnouncement = mutation({
   args: {
-    actor: v.string(), announcementId: v.string(), message: v.string(), tone: announcementTone,
+    actor: v.string(), announcementId: v.string(), title: v.optional(v.string()), message: v.string(), tone: announcementTone,
+    placement: announcementPlacement, backgroundColor: v.string(), textColor: v.string(), accentColor: v.string(),
+    alignment: announcementAlignment, buttonStyle: announcementButtonStyle, showIcon: v.boolean(),
     linkLabel: v.optional(v.string()), linkUrl: v.optional(v.string()),
     startsAt: v.optional(v.string()), endsAt: v.optional(v.string()),
     priority: v.number(), dismissible: v.boolean(), isActive: v.boolean(),

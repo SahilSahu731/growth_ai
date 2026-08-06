@@ -13,7 +13,7 @@ Convex stores the core product and operational tables:
 - `operatorGoals` and `operatorTasks` for the synchronized execution model
 - `subscriptions` and `billingEvents` for Razorpay state and webhook idempotency
 - `adminLoginAttempts` and `adminAuditLogs` for admin abuse prevention and privileged-operation traceability; neither table grants identity or access
-- `announcements` for prioritized and optionally scheduled global site notices managed through the admin workspace
+- `announcements` for prioritized and optionally scheduled top bars, floating banners, and popup notices with validated presentation settings managed through the admin workspace
 
 Every task has a required `goalId`. Free accounts are limited to three active goals inside the database mutation, so the rule cannot be bypassed through the interface. Completing or archiving a goal dismisses its remaining open tasks in the same transaction.
 

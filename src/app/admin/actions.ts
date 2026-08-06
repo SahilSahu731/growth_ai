@@ -25,6 +25,7 @@ import {
   updateAdminAnnouncement,
   type AdminPlanTier,
 } from "@/lib/data/admin"
+import { ANNOUNCEMENT_PRESETS, type AnnouncementAlignment, type AnnouncementButtonStyle, type AnnouncementPlacement, type AnnouncementTone } from "@/lib/announcement-types"
 
 export type AdminActionState = { error?: string; success?: string }
 
@@ -46,13 +47,16 @@ async function requireAdmin() {
 
 function safeMessage(error: unknown): string {
   if (error instanceof Error && error.message.includes("session has expired")) return error.message
-  return error instanceof Error && [
+  if (!(error instanceof Error)) return "The change could not be completed. Please try again."
+  const allowed = [
     "User not found", "Goal not found", "Task not found", "Conversation not found",
     "Confirmation email does not match", "Name must contain at least 2 characters", "Announcement not found",
     "Announcement must contain at least 3 characters", "Link text and URL must be provided together",
     "Announcement links must use HTTPS or a local path", "Start time is invalid", "End time is invalid",
-    "End time must be after start time",
-  ].includes(error.message) ? error.message : "The change could not be completed. Please try again."
+    "End time must be after start time", "Choose a valid announcement style",
+    "Choose a valid announcement placement", "Choose a valid text alignment", "Choose a valid button style",
+  ].includes(error.message) || /^(Background|Text|Accent) color must be/.test(error.message)
+  return allowed ? error.message : "The change could not be completed. Please try again."
 }
 
 export async function adminLoginAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
@@ -210,9 +214,24 @@ function optionalIsoDate(formData: FormData, name: string): string | undefined {
 function announcementInput(formData: FormData) {
   const tone = text(formData, "tone")
   if (!["info", "offer", "warning", "critical"].includes(tone)) throw new Error("Choose a valid announcement style")
+  const placement = text(formData, "placement")
+  const alignment = text(formData, "alignment")
+  const buttonStyle = text(formData, "buttonStyle")
+  if (!["top_bar", "floating_banner", "popup"].includes(placement)) throw new Error("Choose a valid announcement placement")
+  if (!["left", "center"].includes(alignment)) throw new Error("Choose a valid text alignment")
+  if (!["solid", "outline"].includes(buttonStyle)) throw new Error("Choose a valid button style")
+  const preset = ANNOUNCEMENT_PRESETS[tone as AnnouncementTone]
   return {
+    title: optionalText(formData, "title"),
     message: text(formData, "message"),
-    tone: tone as "info" | "offer" | "warning" | "critical",
+    tone: tone as AnnouncementTone,
+    placement: placement as AnnouncementPlacement,
+    backgroundColor: text(formData, "backgroundColor") || preset.backgroundColor,
+    textColor: text(formData, "textColor") || preset.textColor,
+    accentColor: text(formData, "accentColor") || preset.accentColor,
+    alignment: alignment as AnnouncementAlignment,
+    buttonStyle: buttonStyle as AnnouncementButtonStyle,
+    showIcon: formData.get("showIcon") === "on",
     linkLabel: optionalText(formData, "linkLabel"),
     linkUrl: optionalText(formData, "linkUrl"),
     startsAt: optionalIsoDate(formData, "startsAt"),

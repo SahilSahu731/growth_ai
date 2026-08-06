@@ -4,10 +4,25 @@ import { queryGeneric as query } from "convex/server"
 import { requireServer } from "./lib/serverAuth"
 
 function publicAnnouncement(document: any) {
+  const presets = {
+    info: { backgroundColor: "#10242A", textColor: "#ECFEFF", accentColor: "#67E8F9" },
+    offer: { backgroundColor: "#72E7FF", textColor: "#031014", accentColor: "#031014" },
+    warning: { backgroundColor: "#3A2A0D", textColor: "#FFFBEB", accentColor: "#FCD34D" },
+    critical: { backgroundColor: "#3A1315", textColor: "#FEF2F2", accentColor: "#FCA5A5" },
+  } as const
+  const colors = presets[document.tone as keyof typeof presets] ?? presets.info
   return {
     id: document.legacyId,
+    title: document.title ?? null,
     message: document.message,
     tone: document.tone,
+    placement: document.placement ?? "top_bar",
+    backgroundColor: document.backgroundColor ?? colors.backgroundColor,
+    textColor: document.textColor ?? colors.textColor,
+    accentColor: document.accentColor ?? colors.accentColor,
+    alignment: document.alignment ?? "center",
+    buttonStyle: document.buttonStyle ?? "solid",
+    showIcon: document.showIcon ?? true,
     linkLabel: document.linkLabel ?? null,
     linkUrl: document.linkUrl ?? null,
     dismissible: document.dismissible,
