@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Check, ChevronRight, Sparkles } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Check, ChevronRight, Pause, Play, Sparkles } from "lucide-react"
 
 const stories = [
   {
@@ -53,19 +53,35 @@ const stories = [
 export function DynamicGrowthShowcase() {
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
+  const tabs = useRef<Array<HTMLButtonElement | null>>([])
   const story = stories[active]
 
   useEffect(() => {
-    if (paused) return
+    if (paused || reducedMotion) return
     const timer = window.setInterval(() => setActive((current) => (current + 1) % stories.length), 5200)
     return () => window.clearInterval(timer)
-  }, [paused])
+  }, [paused, reducedMotion])
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const sync = () => setReducedMotion(query.matches)
+    sync(); query.addEventListener("change", sync)
+    return () => query.removeEventListener("change", sync)
+  }, [])
+
+  function moveTab(index: number) {
+    const next = (index + stories.length) % stories.length
+    setActive(next); setPaused(true); tabs.current[next]?.focus()
+  }
 
   return (
     <div
       className="mx-auto w-full max-w-5xl rounded-3xl border border-neutral-200/80 bg-neutral-100/70 p-2 shadow-[0_28px_90px_rgba(0,0,0,.5)] backdrop-blur sm:p-3.5"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onPointerDown={() => setPaused(true)}
     >
       <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-left sm:p-6">
         <div className="flex flex-col gap-4 border-b border-neutral-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -75,15 +91,20 @@ export function DynamicGrowthShowcase() {
             <span className="live-dot size-2.5 rounded-full bg-green-400" />
             <span className="ml-2 font-mono text-[10px] tracking-wider text-neutral-400">growthai.app/today</span>
           </div>
-          <div className="flex gap-1 overflow-x-auto rounded-full border border-neutral-200 bg-neutral-100 p-1" role="tablist" aria-label="Preview a life area">
+          <div className="flex gap-1 overflow-x-auto rounded-full border border-neutral-200 bg-neutral-100 p-1" role="tablist" aria-label="Preview a life area" aria-orientation="horizontal">
             {stories.map((item, index) => (
               <button
                 key={item.area}
                 type="button"
                 role="tab"
+                id={`growth-story-tab-${index}`}
+                aria-controls={`growth-story-panel-${index}`}
                 aria-selected={active === index}
-                onClick={() => setActive(index)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-bold transition ${active === index ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-400 hover:text-neutral-700"}`}
+                tabIndex={active === index ? 0 : -1}
+                ref={(element) => { tabs.current[index] = element }}
+                onClick={() => { setActive(index); setPaused(true) }}
+                onKeyDown={(event) => { if (event.key === "ArrowRight") { event.preventDefault(); moveTab(index + 1) } else if (event.key === "ArrowLeft") { event.preventDefault(); moveTab(index - 1) } else if (event.key === "Home") { event.preventDefault(); moveTab(0) } else if (event.key === "End") { event.preventDefault(); moveTab(stories.length - 1) } }}
+                className={`min-h-11 shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${active === index ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-700"}`}
               >
                 {item.area}
               </button>
@@ -91,7 +112,7 @@ export function DynamicGrowthShowcase() {
           </div>
         </div>
 
-        <div key={story.area} className="animate-reveal grid gap-5 pt-5 lg:grid-cols-[1.05fr_.95fr]">
+        <div key={story.area} id={`growth-story-panel-${active}`} role="tabpanel" aria-labelledby={`growth-story-tab-${active}`} className="animate-reveal grid gap-5 pt-5 lg:grid-cols-[1.05fr_.95fr]">
           <div className="rounded-2xl border border-neutral-200 bg-neutral-50/60 p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -131,9 +152,9 @@ export function DynamicGrowthShowcase() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-center gap-1.5" aria-hidden>
+        <div className="mt-4 flex items-center justify-center gap-3"><button type="button" aria-pressed={paused || reducedMotion} disabled={reducedMotion} onClick={() => setPaused((value) => !value)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-neutral-200 px-4 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default disabled:opacity-75">{reducedMotion ? <><Pause className="size-3.5" />Auto-rotation off</> : paused ? <><Play className="size-3.5" />Resume preview</> : <><Pause className="size-3.5" />Pause preview</>}</button><div className="flex gap-1.5" aria-hidden>
           {stories.map((item, index) => <span key={item.area} className={`h-1 rounded-full transition-all duration-500 ${index === active ? "w-8 bg-neutral-950" : "w-2 bg-neutral-200"}`} />)}
-        </div>
+        </div></div>
       </div>
     </div>
   )

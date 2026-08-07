@@ -3,6 +3,7 @@ import GoogleProvider from "next-auth/providers/google"
 
 import { getGoogleOAuthConfig } from "@/lib/oauth-config"
 import { findUserByEmail, upsertOAuthUser } from "@/lib/data/users"
+import { safeErrorForLog } from "@/lib/safe-log"
 
 const providers: NonNullable<NextAuthOptions["providers"]> = []
 const googleOAuth = getGoogleOAuthConfig()
@@ -47,7 +48,7 @@ export const authOptions: NextAuthOptions = {
           // out. A legacy record is active unless deletedAt says otherwise.
           if (!isActiveAppUser(appUser)) return false
         } catch (error) {
-          console.error("Failed to persist OAuth user", error)
+          console.error("Failed to persist OAuth user", safeErrorForLog(error))
           return false
         }
       }
@@ -55,6 +56,7 @@ export const authOptions: NextAuthOptions = {
       return true
     },
     async jwt({ token, user }) {
+      if (user) token.authenticatedAt = Date.now()
       const email = user?.email ?? (typeof token.email === "string" ? token.email : null)
       if (email) {
         try {
@@ -67,7 +69,7 @@ export const authOptions: NextAuthOptions = {
           // A temporary Convex/schema rollout failure must not erase an already
           // validated session and bounce the browser between /login and /chat.
           // New sessions still fail closed because they have no existing ID.
-          console.error("Could not refresh member account state", error)
+          console.error("Could not refresh member account state", safeErrorForLog(error))
           if (!token.userId) token.userId = undefined
         }
       }
@@ -75,6 +77,7 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }) {
+      session.authenticatedAt = token.authenticatedAt
       if (session.user) {
         session.user.id = token.userId ?? ""
       }

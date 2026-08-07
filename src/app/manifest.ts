@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "GrowthAI",
     short_name: "GrowthAI",
-    description: "A private AI growth coach for clear goals, focused tasks, and useful reflection.",
+    description: "An access-controlled AI growth coach for clear goals, focused tasks, and useful reflection.",
     start_url: "/",
     display: "standalone",
     background_color: "#0a0d0b",

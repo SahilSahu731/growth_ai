@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai"
+import { safeErrorForLog } from "@/lib/safe-log"
 
 import type { OperatorGoal, OperatorMessage, OperatorState, OperatorTask, OperatorTaskDraft, OperatorTurn } from "./types"
 
@@ -354,7 +355,7 @@ Planning rules:
       finishReason,
     })
   } catch (error) {
-    console.error("Growth operator model failed; using deterministic fallback", error instanceof Error ? error.message : "Unknown error")
+    console.error("Growth operator model failed; using deterministic fallback", safeErrorForLog(error))
     const outcome = providerFailureOutcome(error)
     const refused = outcome === "provider_refusal"
     return metadata(refused ? providerSafetyTurn() : fallbackTurn(input), { generationOutcome: outcome, finishReason: providerFailureReason(error) })

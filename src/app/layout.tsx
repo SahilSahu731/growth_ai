@@ -3,7 +3,7 @@ import "./globals.css"
 import { GlobalAnnouncementBanner } from "@/components/global-announcement-banner"
 
 const siteUrl = new URL(process.env.NEXT_PUBLIC_APP_URL?.startsWith("http") ? process.env.NEXT_PUBLIC_APP_URL : "https://growth.ai")
-const description = "GrowthAI is a private AI growth coach that turns honest conversations into clear goals, focused tasks, and useful weekly reflection."
+const description = "GrowthAI is an access-controlled AI growth coach that turns honest conversations into clear goals, focused tasks, and useful weekly reflection."
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,

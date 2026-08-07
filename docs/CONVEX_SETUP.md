@@ -1,101 +1,52 @@
-# Connect GrowthAI to Convex
+# Connect GrowthAI to Convex without deployment authority at runtime
 
-GrowthAI's Convex schema and functions already live in `convex/`. Connecting the database means creating a Convex deployment, pushing those functions, and giving the trusted Next.js server its authenticated server identity.
+GrowthAI uses Convex custom JWT authentication. The web runtime never reads `CONVEX_DEPLOY_KEY`, never calls `setAdminAuth`, and never shares an authenticated singleton client. Each call uses a new client and a two-minute token for exactly one role, subject, and scope.
 
-## Local development
+## Identity map
 
-### 1. Create or select a Convex project
+| Identity | Issuer | Capabilities |
+| --- | --- | --- |
+| member | `/convex/member` | Only the signed-in member subject and the requested account/operator/billing scope |
+| auth | `/convex/auth` | OAuth account lookup and verified account linking |
+| admin | `/convex/admin` | Admin session, role-approved read/write, billing, audit, or delete scope |
+| webhook | `/convex/webhook` | Razorpay event ingestion only |
+| background | `/convex/background` | AI provider circuit reporting only |
+| anonymous | none | Current public announcement only |
+| deployment | Convex CLI deploy key | Schema/function deployment only; never present in Next.js runtime |
 
-From the repository root, run:
+Convex validates RS256 tokens using the role-specific JWKS endpoints under `/api/convex/jwks/[role]`. Function authorization checks role, exact scope, and member subject; it does not rely on a fixed `tokenIdentifier`.
 
-```bash
-npm run convex:dev
-```
+## Local setup
 
-The first run asks you to sign in, select or create a project, and choose a development deployment. Keep this process running while developing; it watches `convex/` and pushes schema and function changes automatically.
-
-Convex writes these values into the root `.env.local` automatically:
-
-```dotenv
-CONVEX_DEPLOYMENT="dev:your-deployment"
-NEXT_PUBLIC_CONVEX_URL="https://your-deployment.convex.cloud"
-```
-
-`NEXT_PUBLIC_CONVEX_URL` is a deployment address, not a secret. `CONVEX_DEPLOYMENT` tells the CLI which development deployment to use.
-
-### 2. Create the server-only deployment token
-
-GrowthAI's server adapter authenticates public Convex calls as a fixed trusted server identity. Generate a token for that development deployment:
-
-```bash
-npx convex deployment token create growthai-next-server --deployment dev --save-env .env.local
-```
-
-This adds the following server-only value:
-
-```dotenv
-CONVEX_DEPLOY_KEY="dev:your-deployment|your-secret-token"
-```
-
-Never prefix this key with `NEXT_PUBLIC_`, expose it in browser code, paste it into chat, or commit `.env.local`. The repository ignores all local environment files except `.env.example`.
-
-### 3. Run the application
-
-Use two terminals:
-
-```bash
-# Terminal 1: watches and deploys Convex functions
-npm run convex:dev
-
-# Terminal 2: runs Next.js
-npm run dev
-```
-
-After adding or changing environment values, restart the Next.js process.
-
-### 4. Verify the connection
-
-```bash
-npx convex data
-npx convex logs
-```
-
-You can also open the deployment dashboard with:
-
-```bash
-npx convex dashboard
-```
-
-After signing in through Google, `/chat` should open immediately. Sending a message and approving a task proposal should add records to `operatorConversations`, `operatorMessages`, and `operatorTasks`.
-
-## Production with Vercel
-
-1. In the Convex dashboard, select the production deployment.
-2. Open **Deployment Settings → General → Deploy keys** and generate a production deploy key with permission to deploy the schema and functions. Keep it secret.
-3. In Vercel, open **Project → Settings → Environment Variables** and add:
-
-   ```text
-   CONVEX_DEPLOY_KEY=<production deploy key>
-   NEXT_PUBLIC_CONVEX_URL=https://YOUR_PRODUCTION_DEPLOYMENT.convex.cloud
-   ```
-
-4. Set the Vercel build command to:
+1. Generate independent PKCS#8 keys:
 
    ```bash
-   npx convex deploy --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL --cmd 'npm run build'
+   npm run convex:keys
    ```
 
-5. Redeploy the application.
+   Copy the output to `.env.local`; do not commit or paste it into logs. Set `CONVEX_AUTH_BASE_URL` to an HTTPS URL reachable by Convex. Because the Convex cloud cannot fetch JWKS from localhost, use an access-controlled development tunnel or a deployed preview URL.
 
-The build command pushes the current schema and functions before building Next.js. The production URL must belong to the same deployment as the production key.
+2. Configure the issuer base in the selected Convex deployment:
 
-## Common problems
+   ```bash
+   npx convex env set CONVEX_AUTH_BASE_URL https://YOUR-DEV-OR-PREVIEW-ORIGIN
+   npx convex env set DELETED_IDENTITY_HMAC_SECRET YOUR-GENERATED-HMAC-SECRET
+   ```
 
-- **Missing `NEXT_PUBLIC_CONVEX_URL`:** run `npm run convex:dev`, then restart Next.js.
-- **Missing `CONVEX_DEPLOY_KEY`:** create the development token in step 2 or add the production key in Vercel.
-- **Functions not found:** ensure `npm run convex:dev` is still running locally or `npx convex deploy` succeeded in production.
-- **Unauthorized server request:** confirm the key belongs to the same deployment as the URL and restart Next.js after changing it.
-- **Schema change is not visible:** check the Convex terminal for validation errors and inspect `npx convex logs`.
-- **Wrong database data:** compare `.env.local`'s deployment URL with the URL shown in the selected Convex dashboard deployment.
+3. Run `npm run convex:dev` from a deployment-only terminal. Its deploy credential remains in the CLI environment, not the terminal or service running `npm run dev`.
 
-References: [Convex Next.js quickstart](https://docs.convex.dev/quickstart/nextjs), [Convex deploy keys](https://docs.convex.dev/cli/deploy-key-types), [Convex on Vercel](https://docs.convex.dev/production/hosting/vercel).
+4. Start Next.js with `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_AUTH_BASE_URL`, and the five scoped private keys. Do not set `CONVEX_DEPLOY_KEY` in this process.
+
+## Production deployment order
+
+1. Create distinct preview and production keys with `npm run convex:keys`; store the role keys in the relevant runtime secret store and `DELETED_IDENTITY_HMAC_SECRET` only in the matching Convex deployment environment.
+2. Deploy the Next.js release so its public JWKS routes are reachable. Product database calls remain unavailable until the next step.
+3. In an isolated CI deployment job, set `CONVEX_DEPLOY_KEY` and `CONVEX_AUTH_BASE_URL`, then run `npx convex deploy`. The job must not copy the deploy key into Vercel/runtime environment variables.
+4. Run authenticated member, admin, webhook, retention, export, and deletion smoke tests.
+5. Delete the old runtime deploy variable and rotate/revoke the old deploy key in Convex Deployment Settings.
+
+For stronger compartmentalization, deploy admin, webhook, and background entry points as separate services/projects and inject only that service's private key. The role/scope boundary works in one codebase, but process isolation is required before claiming that a full web-runtime compromise cannot read every runtime secret.
+
+## Rotation
+
+Generate a new key and key ID for one role, deploy the JWKS/runtime secret, allow the five-minute JWKS cache to expire, validate calls, then remove the prior key. Deployment-key rotation is separate and occurs only in the deployment system.

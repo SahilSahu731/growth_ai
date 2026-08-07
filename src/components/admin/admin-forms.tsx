@@ -20,7 +20,7 @@ const inputClass = "h-11 w-full rounded-xl border border-white/10 bg-white/[.035
 
 function SubmitButton({ children, destructive = false, icon: Icon = Save }: { children: React.ReactNode; destructive?: boolean; icon?: typeof Save }) {
   const { pending } = useFormStatus()
-  return <button type="submit" disabled={pending} className={destructive ? "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-4 text-xs font-bold text-red-300 transition hover:bg-red-500/15 disabled:opacity-50" : "inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground transition hover:bg-primary/85 disabled:opacity-50"}><Icon className="size-4" />{pending ? "Saving…" : children}</button>
+  return <button type="submit" disabled={pending} className={destructive ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-4 text-xs font-bold text-red-300 transition hover:bg-red-500/15 disabled:opacity-50" : "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground transition hover:bg-primary/85 disabled:opacity-50"}><Icon className="size-4" />{pending ? "Saving…" : children}</button>
 }
 
 function Feedback({ state }: { state: AdminActionState }) {

@@ -2,9 +2,11 @@ import Link from "next/link"
 import { ArrowUpRight, Heart, Mail, ShieldCheck } from "lucide-react"
 
 import { BrandLogo } from "@/components/brand-logo"
+import { legalDetails } from "@/lib/legal"
 
 export function SiteFooter({ signedIn = false }: { signedIn?: boolean }) {
-  const primaryHref = signedIn ? "/dashboard" : "/signup"
+  const supportEmail = legalDetails().supportContact
+  const primaryHref = signedIn ? "/chat" : "/signup"
   const primaryLabel = signedIn ? "Return to your space" : "Start growing free"
 
   return <footer className="mt-16 w-full overflow-hidden border-t border-[#2b2b2b] bg-[#0d0d0d] text-[#efefec]">
@@ -16,14 +18,15 @@ export function SiteFooter({ signedIn = false }: { signedIn?: boolean }) {
       </section>
     </div>
 
-    <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-12 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.55fr_.7fr_.7fr_.8fr] lg:px-12">
-      <div className="max-w-sm"><Link href="/" className="inline-flex items-center gap-3 font-display text-lg tracking-wide"><BrandLogo className="size-10" />GrowthAI</Link><p className="mt-5 text-sm font-normal leading-7 text-[#888883]">A private AI growth operator for choosing meaningful direction, taking smaller steps, and learning what genuinely helps.</p><div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-normal text-[#747470]"><span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-primary" />Private by default</span><span className="flex items-center gap-1.5"><Heart className="size-3.5 text-primary" />No shame loops</span></div></div>
+    <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-12 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.4fr_.65fr_.65fr_.65fr_.9fr] lg:px-12">
+      <div className="max-w-sm"><Link href="/" className="inline-flex items-center gap-3 font-display text-lg tracking-wide"><BrandLogo className="size-10" />GrowthAI</Link><p className="mt-5 text-sm font-normal leading-7 text-[#a3a39e]">An access-controlled AI growth operator for choosing meaningful direction, taking smaller steps, and learning what genuinely helps.</p><div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-normal text-[#91918c]"><span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-primary" />Export and deletion controls</span><span className="flex items-center gap-1.5"><Heart className="size-3.5 text-primary" />No shame loops</span></div></div>
       <FooterGroup title="Product"><FooterLink href="/#system">How it works</FooterLink><FooterLink href="/#inside">Product experience</FooterLink><FooterLink href="/pricing">Pricing</FooterLink></FooterGroup>
-      <FooterGroup title="Account">{signedIn ? <><FooterLink href="/dashboard">Dashboard</FooterLink><FooterLink href="/settings">Settings</FooterLink><FooterLink href="/settings#billing">Plan & billing</FooterLink></> : <><FooterLink href="/signup">Create account</FooterLink><FooterLink href="/login">Log in</FooterLink><FooterLink href="/pricing">Compare plans</FooterLink></>}</FooterGroup>
-      <FooterGroup title="Support"><a href="mailto:support@growthai.app" className="flex items-center gap-2 text-sm font-normal text-[#999994] transition hover:text-white"><Mail className="size-4" />Email support</a><p className="text-xs font-normal leading-6 text-[#686864]">Questions about your account, billing, or using GrowthAI.</p></FooterGroup>
+      <FooterGroup title="Account">{signedIn ? <><FooterLink href="/chat">Workspace</FooterLink><FooterLink href="/settings">Settings</FooterLink><FooterLink href="/billing">Plan & billing</FooterLink></> : <><FooterLink href="/signup">Create account</FooterLink><FooterLink href="/login">Log in</FooterLink><FooterLink href="/pricing">Compare plans</FooterLink></>}</FooterGroup>
+      <FooterGroup title="Trust"><FooterLink href="/privacy">Privacy</FooterLink><FooterLink href="/terms">Terms</FooterLink><FooterLink href="/security">Security</FooterLink><FooterLink href="/ai-safety">AI safety</FooterLink><FooterLink href="/subprocessors">Subprocessors</FooterLink></FooterGroup>
+      <FooterGroup title="Support"><a href={`mailto:${supportEmail}`} className="flex min-h-11 items-center gap-2 text-sm font-normal text-[#b1b1ac] transition hover:text-white"><Mail className="size-4" />Email support</a><a href={`mailto:${supportEmail}?subject=GrowthAI%20public-beta%20bug%20report`} className="flex min-h-11 items-center text-sm font-normal text-[#b1b1ac] transition hover:text-white">Report a beta bug</a><p className="text-xs font-normal leading-6 text-[#8f8f8a]">Account and billing support. Public-beta target: reply within 3 business days.</p></FooterGroup>
     </div>
 
-    <div className="border-t border-[#252525]"><div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-5 py-6 text-xs font-normal text-[#686864] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12"><p>© 2026 GrowthAI. All rights reserved.</p><p>A quieter way to change.</p></div></div>
+    <div className="border-t border-[#252525]"><div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-5 py-6 text-xs font-normal text-[#8f8f8a] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12"><p>© {new Date().getFullYear()} GrowthAI. All rights reserved.</p><p>Public beta · A quieter way to change.</p></div></div>
   </footer>
 }
 
@@ -32,5 +35,5 @@ function FooterGroup({ title, children }: { title: string; children: React.React
 }
 
 function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return <Link href={href} className="text-sm font-normal text-[#999994] transition hover:text-white">{children}</Link>
+  return <Link href={href} className="flex min-h-11 items-center text-sm font-normal text-[#b1b1ac] transition hover:text-white focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{children}</Link>
 }

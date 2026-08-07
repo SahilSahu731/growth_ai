@@ -19,10 +19,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
       - name: Scan tracked files for secrets and sensitive data
         run: ./scripts/security-scan.sh --tracked
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Review dependency licenses
+        run: npm run license:check
+      - name: Review dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
 
   verify:
     runs-on: ubuntu-latest

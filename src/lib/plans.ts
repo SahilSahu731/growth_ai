@@ -15,22 +15,22 @@ export const PLANS: readonly Plan[] = [
     name: "Free",
     description: "A complete chat-to-action loop for focused personal growth.",
     monthlyPrice: 0,
-    features: ["Up to 3 active goals", "AI-planned, editable goal-linked tasks", "Weekly report and Growth Map", "Private by default"],
+    features: ["Up to 3 active goals", "AI-planned, editable goal-linked tasks", "Weekly report and Growth Map", "JSON export, retention, and deletion controls"],
   },
   {
     id: "pro",
     name: "Pro",
-    description: "For growing across several parts of life with deeper memory.",
+    description: "For managing more active goals while supporting the public beta.",
     monthlyPrice: 999,
     badge: "Most popular",
-    features: ["Up to 25 active goals", "Calendar Operator and deeper memory", "Voice Coach and advanced insights", "Exports and priority features"],
+    features: ["Up to 25 active goals", "Everything in the current Free workspace", "Subscription history and self-service cancellation", "Calendar, voice, and deeper insights are planned—not included yet"],
   },
   {
     id: "founder",
     name: "Founder",
     description: "A limited plan for people helping shape a healthier growth product.",
     monthlyPrice: 749,
-    features: ["Everything in Pro", "Locked founder price while subscribed", "Direct product feedback channel", "Founder badge (optional)"],
+    features: ["Everything currently available in Pro", "Locked founder price while subscribed", "Supports development during public beta", "No promised badge, private channel, or unreleased feature"],
   },
 ] as const
 

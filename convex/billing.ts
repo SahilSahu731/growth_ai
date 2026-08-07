@@ -2,7 +2,7 @@
 import { mutationGeneric as mutation, queryGeneric as query } from "convex/server"
 import { v } from "convex/values"
 
-import { requireServer } from "./lib/serverAuth"
+import { requireMember, requireScope } from "./lib/serverAuth"
 
 const paidPlan = v.union(v.literal("pro"), v.literal("founder"))
 const activeStatuses = new Set(["active", "authenticated"])
@@ -23,7 +23,7 @@ async function userForId(ctx: any, userId: string) {
 export const getUserBilling = query({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
-    await requireServer(ctx)
+    await requireMember(ctx, userId, "billing:read")
     const [user, subscriptions] = await Promise.all([
       userForId(ctx, userId),
       ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
@@ -43,7 +43,7 @@ export const getUserBilling = query({
 export const beginCheckout = mutation({
   args: { userId: v.string(), planTier: paidPlan },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "billing:write")
     const now = new Date()
     const nowIso = now.toISOString()
     const user = await userForId(ctx, args.userId)
@@ -70,7 +70,7 @@ export const beginCheckout = mutation({
 export const releaseCheckout = mutation({
   args: { userId: v.string(), token: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "billing:write")
     const lock = await ctx.db.query("billingCheckoutLocks").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).unique()
     if (lock?.token === args.token) await ctx.db.delete(lock._id)
     return true
@@ -83,7 +83,7 @@ export const completeCheckout = mutation({
     amount: v.number(), currency: v.string(), checkoutUrl: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "billing:write")
     const lock = await ctx.db.query("billingCheckoutLocks").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).unique()
     if (!lock || lock.token !== args.token || lock.expiresAt <= new Date().toISOString() || lock.planTier !== args.planTier) {
       throw new Error("Checkout lock expired")
@@ -114,7 +114,7 @@ export const completeCheckout = mutation({
 export const markCancelRequested = mutation({
   args: { userId: v.string(), providerSubscriptionId: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "billing:write")
     const subscription = await ctx.db.query("subscriptions").withIndex("by_provider_subscription", (q: any) => q.eq("providerSubscriptionId", args.providerSubscriptionId)).unique()
     if (!subscription || subscription.userId !== args.userId) throw new Error("Subscription not found")
     await ctx.db.patch(subscription._id, { cancelAtPeriodEnd: true, updatedAt: new Date().toISOString() })
@@ -131,7 +131,7 @@ export const recordEvent = mutation({
     periodStart: v.optional(v.string()), periodEnd: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "webhook", "billing:webhook")
     const duplicate = await ctx.db.query("billingEvents").withIndex("by_provider_event", (q: any) => q.eq("providerEventId", args.providerEventId)).unique()
     if (duplicate) return { duplicate: true }
     const timestamp = new Date().toISOString()

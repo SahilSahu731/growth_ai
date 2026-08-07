@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { safeErrorForLog } from "@/lib/safe-log"
 
 import {
   MUTATING_SUBSCRIPTION_EVENTS,
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
     })
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error("Razorpay webhook processing failed", error)
+    console.error("Razorpay webhook processing failed", safeErrorForLog(error))
     return NextResponse.json({ error: "Webhook processing failed." }, { status: 500 })
   }
 }

@@ -21,7 +21,8 @@ export type AppUser = {
 
 export type UserPlanTier = "free" | "pro" | "founder" | "team"
 export async function findUserByEmail(email: string): Promise<AppUser | null> {
-  return convexQuery("users:findByEmail", { email: email.trim().toLowerCase() })
+  const normalized = email.trim().toLowerCase()
+  return convexQuery("users:findByEmail", { email: normalized }, { role: "auth", subject: `oauth:${normalized}`, scope: "users:auth" })
 }
 
 export async function upsertOAuthUser(input: {
@@ -43,7 +44,7 @@ export async function upsertOAuthUser(input: {
       providerAccountId: input.providerAccountId,
       emailVerified: input.emailVerified,
       ...(input.locale ? { locale: input.locale } : {}),
-    })
+    }, { role: "auth", subject: `oauth:${base.email}`, scope: "users:auth" })
   } catch (error) {
     // Keep web and Convex deploys compatible during the additive rollout. The
     // previous validator rejects the new OAuth fields as unknown; retry its old
@@ -53,6 +54,6 @@ export async function upsertOAuthUser(input: {
     const legacyValidator = /ArgumentValidationError|extra field|not in the validator/i.test(message)
       && /providerAccountId|emailVerified|locale/i.test(message)
     if (!legacyValidator) throw error
-    return convexMutation("users:upsertOAuth", base)
+    return convexMutation("users:upsertOAuth", base, { role: "auth", subject: `oauth:${base.email}`, scope: "users:auth" })
   }
 }

@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { queryGeneric as query } from "convex/server"
 
-import { requireServer } from "./lib/serverAuth"
 
 function publicAnnouncement(document: any) {
   const presets = {
@@ -33,7 +32,6 @@ function publicAnnouncement(document: any) {
 export const getCurrent = query({
   args: {},
   handler: async (ctx) => {
-    await requireServer(ctx)
     const now = new Date().toISOString()
     const candidates = await ctx.db
       .query("announcements")

@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { mutationGeneric as mutation, queryGeneric as query } from "convex/server"
 import { v } from "convex/values"
-import { requireServer } from "./lib/serverAuth"
+import { requireScope } from "./lib/serverAuth"
+import { identityHash } from "./lib/identityHash"
 
 function publicUser(user: any) {
   if (!user) return null
@@ -24,7 +25,7 @@ function publicUser(user: any) {
 export const findByEmail = query({
   args: { email: v.string() },
   handler: async (ctx, { email }) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "auth", "users:auth")
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q: any) => q.eq("email", email.trim().toLowerCase()))
@@ -43,11 +44,16 @@ export const upsertOAuth = mutation({
     locale: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "auth", "users:auth")
     if (!args.emailVerified) throw new Error("A verified Google email is required")
     const email = args.email.trim().toLowerCase()
     const providerAccountId = args.providerAccountId.trim()
     if (!providerAccountId) throw new Error("OAuth account identifier is required")
+    const [emailHash, providerHash] = await Promise.all([identityHash(email), identityHash(providerAccountId)])
+    for (const hashed of [emailHash, providerHash]) {
+      const tombstone = await ctx.db.query("deletedIdentityTombstones").withIndex("by_identity_hash", (q: any) => q.eq("identityHash", hashed)).unique()
+      if (tombstone) throw new Error("ACCOUNT_DELETED: This identity belongs to a deleted account and cannot be restored automatically")
+    }
     const name = args.name?.trim() || email.split("@")[0] || "User"
     const [providerUser, emailUser] = await Promise.all([
       ctx.db.query("users").withIndex("by_provider_account", (q: any) => q.eq("authProvider", args.provider).eq("providerAccountId", providerAccountId)).unique(),

@@ -37,7 +37,7 @@ Configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the root `.env.local`
 
 After cloning, run `npm run hooks:install` to enable the repository's staged secret/sensitive-file guard. Production deployments must run `npm run validate:env` before building.
 
-Run `npm run convex:dev` to create or connect a development database and deploy the schema/functions. Convex functions called by the app require the trusted Next.js server identity; the deployment token stays server-only. Follow [Convex setup](./docs/CONVEX_SETUP.md) to generate that token safely and configure production.
+Run `npm run convex:dev` to create or connect a development database and deploy the schema/functions. Runtime calls use short-lived, scope-bound RS256 application identities; the Convex deployment key belongs only in the CLI/deployment job. Follow [Convex setup](./docs/CONVEX_SETUP.md) to generate the identity keys and configure production.
 
 The admin workspace is available at `/admin` after its independent email, password, and session signing key are configured. It does not use member roles or member sessions. Follow [Admin setup](./docs/ADMIN_SETUP.md) before deploying it.
 
@@ -56,4 +56,4 @@ npm run build
 - Use distinct secrets for development, preview, and production.
 - Complete a full Razorpay test-mode lifecycle before using live keys. Paid access is granted only by matching, signed provider webhooks—not by the checkout redirect.
 
-See [roadmap.md](./roadmap.md) and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+Before public launch, complete the evidence-based steps in [docs/EXTERNAL_COMPLETION_STEPS.md](./docs/EXTERNAL_COMPLETION_STEPS.md), the [accessibility plan](./docs/ACCESSIBILITY_TEST_PLAN.md), the [incident runbook](./docs/SECURITY_INCIDENT_RESPONSE.md), the [audit runbook](./docs/AUDIT_OPERATIONS.md), and the [legal checklist](./docs/LEGAL_REVIEW_CHECKLIST.md). See [roadmap.md](./roadmap.md) and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the full sequence.

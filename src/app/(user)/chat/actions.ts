@@ -6,6 +6,7 @@ import { headers } from "next/headers"
 import { createHmac } from "node:crypto"
 
 import { authOptions } from "@/auth"
+import { safeErrorForLog } from "@/lib/safe-log"
 import {
   acceptOperatorTasks,
   beginOperatorTurn,
@@ -111,7 +112,7 @@ export async function sendOperatorMessageAction(_state: ChatActionState, formDat
     revalidatePath("/dashboard")
     return { sentAt: Date.now() }
   } catch (error) {
-    console.error("Could not complete GrowthAI chat turn", error)
+    console.error("Could not complete GrowthAI chat turn", safeErrorForLog(error))
     const messageText = error instanceof Error ? error.message : ""
     if (messageText.includes("AI_RATE_LIMITED") || messageText.includes("AI_DAILY_LIMIT_REACHED")) {
       return { error: messageText.split(": ").slice(1).join(": ") || "AI usage limit reached. Try again later." }

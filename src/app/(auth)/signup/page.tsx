@@ -6,7 +6,7 @@ import { GoogleAuthButton } from "@/components/auth/google-auth-button"
 import { getOAuthProviderAvailability } from "@/lib/oauth-config"
 import { safeCallbackPath } from "@/lib/safe-callback"
 
-export const metadata: Metadata = { title: "Sign up", description: "Create your private GrowthAI workspace and start growing with clarity." }
+export const metadata: Metadata = { title: "Sign up", description: "Create your access-controlled GrowthAI workspace and start growing with clarity." }
 
 export const dynamic = "force-dynamic"
 
@@ -23,14 +23,14 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
         <span className="h-px w-10 bg-[#72e7ff]" />
         <p className="font-semibold text-white">One direction. All of you.</p>
       </div>
-      <p className="mt-4 max-w-sm text-xs leading-6 text-white/40">Build a private practice for changing what matters—without turning your life into another performance.</p>
+      <p className="mt-4 max-w-sm text-sm leading-6 text-white/70">Build a personal reflection practice for changing what matters—without turning your life into another performance.</p>
       {/* <div className="mt-5 flex flex-wrap gap-1.5">{areas.map((area) => <span key={area} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold text-white/35">{area}</span>)}</div> */}
 
       <div className="mt-8"><GoogleAuthButton enabled={google} label="Start with Google" callbackUrl={callbackUrl} /></div>
 
-      <div className="mt-5 flex items-center gap-2 text-sm tracking-wide text-white/30"><LockKeyhole className="size-3.5" />Private, passwordless, and free to begin</div>
-      <p className="mt-6 text-[12px] leading-5 text-white/20">GrowthAI supports reflection and planning. It is not medical or emergency care.</p>
-      <p className="mt-6 text-xs text-white/45">Already have a space? <Link href={`/login${callbackQuery}`} className="font-semibold text-white underline decoration-[#72e7ff]/50 underline-offset-4 transition hover:text-[#72e7ff]">Sign in</Link></p>
+      <div className="mt-5 flex items-center gap-2 text-sm tracking-wide text-white/70"><LockKeyhole className="size-3.5" />Passwordless and free to begin</div>
+      <p className="mt-5 text-sm leading-6 text-white/70">By continuing, you agree to the <Link href="/terms" className="underline underline-offset-4 hover:text-white">Terms</Link> and acknowledge the <Link href="/privacy" className="underline underline-offset-4 hover:text-white">Privacy Notice</Link>. GrowthAI is not medical or emergency care.</p>
+      <p className="mt-6 text-sm text-white/70">Already have a space? <Link href={`/login${callbackQuery}`} className="font-semibold text-white underline decoration-[#72e7ff]/50 underline-offset-4 transition hover:text-[#72e7ff]">Sign in</Link></p>
     </div>
   )
 }

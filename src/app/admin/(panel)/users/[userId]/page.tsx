@@ -3,8 +3,10 @@ import { notFound } from "next/navigation"
 import { ArrowLeft, CalendarDays, CircleUserRound, CreditCard, MessageSquareText, Target, Workflow } from "lucide-react"
 
 import { AdminAccessControl, AdminDeleteConversationForm, AdminDeleteUserForm, AdminGoalStatusForm, AdminTaskStatusForm, AdminUserEditor } from "@/components/admin/admin-forms"
+import { adminLogoutAction } from "@/app/admin/actions"
 import { getAdminUserDetail } from "@/lib/data/admin"
-import { requireAdminPageSession } from "@/lib/admin/page-auth"
+import { adminSessionHasRecentMfa } from "@/lib/admin/auth"
+import { requireAdminPageRole } from "@/lib/admin/page-auth"
 
 export const metadata = { title: "Manage user" }
 
@@ -16,10 +18,15 @@ function Panel({ title, description, children, className = "" }: { title: string
   return <section className={`rounded-2xl border border-white/8 bg-white/[.025] p-5 sm:p-6 ${className}`}><div className="mb-5"><h2 className="text-sm font-bold text-white">{title}</h2>{description ? <p className="mt-1 text-xs text-neutral-600">{description}</p> : null}</div>{children}</section>
 }
 
-export default async function AdminUserPage({ params }: { params: Promise<{ userId: string }> }) {
-  await requireAdminPageSession()
+export default async function AdminUserPage({ params, searchParams }: { params: Promise<{ userId: string }>; searchParams: Promise<{ reason?: string; ticket?: string }> }) {
+  const session = await requireAdminPageRole("support-read")
+  if (!adminSessionHasRecentMfa(session)) return <div className="mx-auto max-w-xl rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6"><Link href="/admin/users" className="text-sm text-neutral-300">← Back to users</Link><h1 className="mt-6 text-2xl font-black text-white">Fresh MFA required</h1><p className="mt-3 text-sm leading-6 text-neutral-300">Account and conversation content requires a password and authenticator check from the last 10 minutes.</p><form action={adminLogoutAction} className="mt-6"><button className="min-h-11 rounded-xl bg-primary px-5 font-bold text-primary-foreground">Sign out and verify again</button></form></div>
   const { userId } = await params
-  const detail = await getAdminUserDetail(userId)
+  const access = await searchParams
+  const reason = access.reason?.trim() ?? ""
+  const ticket = access.ticket?.trim() ?? ""
+  if (reason.length < 10 || ticket.length < 3) return <div className="mx-auto max-w-xl rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6"><Link href="/admin/users" className="text-sm text-neutral-400">← Back to users</Link><h1 className="mt-6 text-2xl font-black text-white">Justification required</h1><p className="mt-3 text-sm leading-6 text-neutral-400">Opening this account exposes sensitive profile and message data. Enter a legitimate support, safety, or legal reason and a tracked ticket/reference. The access and result will be audited.</p><form className="mt-6 space-y-4"><label className="block text-sm text-neutral-300">Reason<textarea name="reason" minLength={10} maxLength={500} required className="mt-2 min-h-28 w-full rounded-xl border border-white/15 bg-black/20 p-3" /></label><label className="block text-sm text-neutral-300">Ticket or case reference<input name="ticket" minLength={3} maxLength={100} required className="mt-2 min-h-11 w-full rounded-xl border border-white/15 bg-black/20 px-3" /></label><button className="min-h-11 rounded-xl bg-primary px-5 font-bold text-primary-foreground">Open audited account view</button></form></div>
+  const detail = await getAdminUserDetail({ userId, actor: session.email, reason, ticket, requestId: crypto.randomUUID() })
   if (!detail) notFound()
   const { user } = detail
   const suspended = user.accountStatus === "suspended" || Boolean(user.deletedAt)

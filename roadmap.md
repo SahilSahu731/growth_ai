@@ -8,7 +8,7 @@ The missing Gemini API key and Razorpay credentials are intentionally not treate
 
 Checked items below are implemented in this working tree and backed by the verification commands in this status record. Unchecked items are intentionally not claimed as complete. Tasks requiring provider, deployment, encrypted-storage, or GitHub authority have exact instructions in [docs/EXTERNAL_COMPLETION_STEPS.md](docs/EXTERNAL_COMPLETION_STEPS.md).
 
-Current evidence: secret scan passed; production dependency audit found 0 vulnerabilities; lint and both TypeScript checks passed; 74 unit/integration/contract tests passed; six desktop/mobile Playwright journeys passed; coverage and the optimized production build passed. Production environment validation correctly fails until the external production URL and strong admin credential values are supplied.
+Current evidence: secret scan, production dependency audit (0 vulnerabilities), license review, lint, both TypeScript checks, 80 unit/integration/authorization tests, coverage thresholds, and the optimized production build pass. The expanded 22-case desktop/mobile Playwright and axe suite is committed but must run in CI or a host that permits Chromium; this workspace blocks Chromium sandbox startup. Production environment validation intentionally fails until the external domain, legal contacts, scoped keys, and named MFA administrator values are supplied.
 
 ## How to use this roadmap
 
@@ -247,17 +247,19 @@ Current evidence: secret scan passed; production dependency audit found 0 vulner
 
 # G2 — Security, privacy, accessibility, and public-beta trust
 
+Production-only evidence and exact owner steps are tracked in `docs/EXTERNAL_COMPLETION_STEPS.md`; manual accessibility evidence uses `docs/ACCESSIBILITY_TEST_PLAN.md`.
+
 ## 2.1 Remove deployment authority from the application runtime
 
 - [ ] Keep `CONVEX_DEPLOY_KEY` only in the deployment environment that runs Convex CLI operations.
-- [ ] Replace runtime deploy/admin-key authentication with a dedicated application identity using supported Convex authentication.
-- [ ] Grant the runtime only the capabilities required by member and service operations.
+- [x] Replace runtime deploy/admin-key authentication with a dedicated application identity using supported Convex authentication.
+- [x] Grant the runtime only the capabilities required by member and service operations.
 - [ ] Separate member, admin, webhook, background-job, preview, CI, and deployment identities.
-- [ ] Stop relying on a fixed token identifier as an additional security boundary.
-- [ ] Avoid mutable shared authentication state on a singleton Convex HTTP client.
-- [ ] Add authorization tests proving member, admin, webhook, and anonymous identities cannot call each other's functions.
+- [x] Stop relying on a fixed token identifier as an additional security boundary.
+- [x] Avoid mutable shared authentication state on a singleton Convex HTTP client.
+- [x] Add authorization tests proving member, admin, webhook, and anonymous identities cannot call each other's functions.
 - [ ] Rotate the old deploy credential after the migration.
-- [ ] Update `docs/CONVEX_SETUP.md` and architecture documentation.
+- [x] Update `docs/CONVEX_SETUP.md` and architecture documentation.
 
 ### Checkpoint 2.1
 
@@ -266,112 +268,112 @@ Current evidence: secret scan passed; production dependency audit found 0 vulner
 
 ## 2.2 Replace the single-admin security model
 
-- [ ] Choose a managed administrator identity provider or a passkey/MFA-capable authentication design.
-- [ ] Require MFA for every administrator.
-- [ ] Remove plaintext production password support.
-- [ ] Require a dedicated 32-byte-or-stronger admin session secret; never fall back to member auth secrets.
-- [ ] Fail production startup when admin security configuration is weak or missing.
-- [ ] Implement roles such as support-read, support-write, billing, security-auditor, and owner.
-- [ ] Apply least privilege to every admin query and mutation.
-- [ ] Add step-up authentication for content access, plan changes, suspension, export, and deletion.
-- [ ] Add server-side session records, rotation, revocation, idle expiry, absolute expiry, and device/session listing.
+- [x] Choose a managed administrator identity provider or a passkey/MFA-capable authentication design.
+- [x] Require MFA for every administrator.
+- [x] Remove plaintext production password support.
+- [x] Require a dedicated 32-byte-or-stronger admin session secret; never fall back to member auth secrets.
+- [x] Fail production startup when admin security configuration is weak or missing.
+- [x] Implement roles such as support-read, support-write, billing, security-auditor, and owner.
+- [x] Apply least privilege to every admin query and mutation.
+- [x] Add step-up authentication for content access, plan changes, suspension, export, and deletion.
+- [x] Add server-side session records, rotation, revocation, idle expiry, absolute expiry, and device/session listing.
 - [ ] Add emergency access recovery with dual control and audit trails.
-- [ ] Rate-limit admin login by trusted IP, account, device signal, and global volume.
-- [ ] Do not trust arbitrary `x-forwarded-for` values outside a configured proxy boundary.
+- [x] Rate-limit admin login by trusted IP, account, device signal, and global volume.
+- [x] Do not trust arbitrary `x-forwarded-for` values outside a configured proxy boundary.
 - [ ] Add exponential backoff and alerts for credential stuffing.
 
 ## 2.3 Make privileged access auditable
 
-- [ ] Audit every admin read of message content or sensitive user data.
-- [ ] Record actor, reason/ticket, target, action, timestamp, request ID, and result.
-- [ ] Require a support justification before opening conversation content.
-- [ ] Notify or disclose to users how support access works.
-- [ ] Separate audit storage permissions from ordinary admin permissions.
-- [ ] Make audit entries append-only in application code.
+- [x] Audit every admin read of message content or sensitive user data.
+- [x] Record actor, reason/ticket, target, action, timestamp, request ID, and result.
+- [x] Require a support justification before opening conversation content.
+- [x] Notify or disclose to users how support access works.
+- [x] Separate audit storage permissions from ordinary admin permissions.
+- [x] Make audit entries append-only in application code.
 - [ ] Export audit records to tamper-evident external storage.
-- [ ] Define audit retention and access-review schedules.
+- [x] Define audit retention and access-review schedules.
 - [ ] Add alerts for bulk reads, exports, repeated failures, plan changes, and deletions.
 
 ## 2.4 Publish accurate legal and trust surfaces
 
 - [ ] Decide the production company/legal entity, jurisdiction, contact address, and canonical domain.
-- [ ] Add `/privacy` covering collected data, purposes, legal bases, AI providers, payments, analytics, retention, exports, deletion, support access, backups, and user rights.
-- [ ] Add `/terms` covering eligibility, acceptable use, subscription terms, cancellation, refunds, limitations, and dispute terms.
-- [ ] Add `/security` with accurate security practices and reporting contact.
-- [ ] Add `/ai-safety` explaining limitations, non-clinical status, safety behavior, and escalation resources.
-- [ ] Publish a subprocessor list including hosting, database, model, authentication, payment, email, analytics, and monitoring providers actually used.
-- [ ] Add accessible Privacy and Terms links on landing, pricing, login, signup, settings, and checkout surfaces.
-- [ ] Add an explicit model-processing notice before a user's first AI conversation.
-- [ ] Record acceptance of the applicable Terms/Privacy version where legally required.
-- [ ] Define minimum age and handle underage users appropriately.
-- [ ] Define data retention for messages, tasks, goals, generated output, model telemetry, billing, audit logs, and backups.
-- [ ] Align every “private” marketing statement with actual admin and provider access.
+- [x] Add `/privacy` covering collected data, purposes, legal bases, AI providers, payments, analytics, retention, exports, deletion, support access, backups, and user rights.
+- [x] Add `/terms` covering eligibility, acceptable use, subscription terms, cancellation, refunds, limitations, and dispute terms.
+- [x] Add `/security` with accurate security practices and reporting contact.
+- [x] Add `/ai-safety` explaining limitations, non-clinical status, safety behavior, and escalation resources.
+- [x] Publish a subprocessor list including hosting, database, model, authentication, payment, email, analytics, and monitoring providers actually used.
+- [x] Add accessible Privacy and Terms links on landing, pricing, login, signup, settings, and checkout surfaces.
+- [x] Add an explicit model-processing notice before a user's first AI conversation.
+- [x] Record acceptance of the applicable Terms/Privacy version where legally required.
+- [x] Define minimum age and handle underage users appropriately.
+- [x] Define data retention for messages, tasks, goals, generated output, model telemetry, billing, audit logs, and backups.
+- [x] Align every “private” marketing statement with actual admin and provider access.
 - [ ] Review the documents with qualified counsel before public launch.
 
 ## 2.5 Complete privacy controls
 
-- [ ] Let users delete individual conversations without accidental dangling references.
-- [ ] Let users delete or clear AI memory independently of account deletion.
-- [ ] Offer optional automatic message-retention periods.
-- [ ] Minimize content sent to model and monitoring providers.
-- [ ] Redact secrets and sensitive identifiers from logs and error reports.
-- [ ] Make export machine-readable, documented, complete, and timestamped.
-- [ ] Include preferences, subscription history, retained origin metadata, and legally exportable access history.
-- [ ] Make account deletion asynchronous, resumable, observable, and safe for large accounts.
-- [ ] Show deletion scope, billing prerequisites, cooling-off period, and backup-retention behavior accurately.
-- [ ] Preserve only legally required records after deletion and document why.
-- [ ] Add automated tests proving deleted users cannot authenticate or reappear through restoration jobs.
-- [ ] Create a data-subject-request workflow with identity verification and completion tracking.
+- [x] Let users delete individual conversations without accidental dangling references.
+- [x] Let users delete or clear AI memory independently of account deletion.
+- [x] Offer optional automatic message-retention periods.
+- [x] Minimize content sent to model and monitoring providers.
+- [x] Redact secrets and sensitive identifiers from logs and error reports.
+- [x] Make export machine-readable, documented, complete, and timestamped.
+- [x] Include preferences, subscription history, retained origin metadata, and legally exportable access history.
+- [x] Make account deletion asynchronous, resumable, observable, and safe for large accounts.
+- [x] Show deletion scope, billing prerequisites, cooling-off period, and backup-retention behavior accurately.
+- [x] Preserve only legally required records after deletion and document why.
+- [x] Add automated tests proving deleted users cannot authenticate or reappear through restoration jobs.
+- [x] Create a data-subject-request workflow with identity verification and completion tracking.
 
 ## 2.6 Establish application security controls
 
-- [ ] Apply a nonce- or hash-based Content Security Policy to all routes.
-- [ ] Remove `unsafe-inline` where feasible.
+- [x] Apply a nonce- or hash-based Content Security Policy to all routes.
+- [x] Remove `unsafe-inline` where feasible.
 - [ ] Add HSTS in production after HTTPS/domain readiness is confirmed.
-- [ ] Review COOP/COEP behavior around OAuth and payment windows.
-- [ ] Preserve frame, MIME, referrer, and permissions protections.
-- [ ] Add CSRF/origin validation for sensitive admin and account operations.
-- [ ] Add step-up confirmation for account deletion and irreversible actions.
-- [ ] Validate and normalize all server-action, route-handler, webhook, URL, color, date, and search inputs.
-- [ ] Validate announcement foreground/background contrast before publication.
-- [ ] Add dependency-update automation with grouped, reviewed upgrades.
-- [ ] Add SAST, secret scanning, dependency scanning, and license review to CI.
-- [ ] Establish a vulnerability-reporting process and `security.txt`.
+- [x] Review COOP/COEP behavior around OAuth and payment windows.
+- [x] Preserve frame, MIME, referrer, and permissions protections.
+- [x] Add CSRF/origin validation for sensitive admin and account operations.
+- [x] Add step-up confirmation for account deletion and irreversible actions.
+- [x] Validate and normalize all server-action, route-handler, webhook, URL, color, date, and search inputs.
+- [x] Validate announcement foreground/background contrast before publication.
+- [x] Add dependency-update automation with grouped, reviewed upgrades.
+- [x] Add SAST, secret scanning, dependency scanning, and license review to CI.
+- [x] Establish a vulnerability-reporting process and `security.txt`.
 - [ ] Run a focused external penetration test before paid launch.
 
 ## 2.7 Reach WCAG 2.2 AA on critical journeys
 
-- [ ] Define accessible semantic color tokens with at least 4.5:1 normal-text and 3:1 large-text contrast.
-- [ ] Increase supporting text that is currently 9–11px to a readable responsive scale.
-- [ ] Improve login security, support, legal, and muted-copy contrast.
-- [ ] Make interactive hit targets at least 44×44 CSS pixels where practical.
-- [ ] Add visible focus states that are not color-only.
-- [ ] Implement correct tablist roles, `aria-controls`, roving focus, and arrow-key navigation.
-- [ ] Stop auto-rotation on hover, keyboard focus, user interaction, and reduced-motion preference.
-- [ ] Provide an explicit pause control for rotating content.
-- [ ] Give announcement dialogs initial focus, focus trapping, Escape behavior, accessible names, and focus return.
-- [ ] Ensure a nondismissible announcement never prevents access to the application or assistive controls.
-- [ ] Replace noninteractive elements styled as links/buttons with actual controls or plain text.
-- [ ] Label icon-only buttons and expose state changes to assistive technology.
-- [ ] Verify form errors are associated, announced, and recoverable.
+- [x] Define accessible semantic color tokens with at least 4.5:1 normal-text and 3:1 large-text contrast.
+- [x] Increase supporting text that is currently 9–11px to a readable responsive scale.
+- [x] Improve login security, support, legal, and muted-copy contrast.
+- [x] Make interactive hit targets at least 44×44 CSS pixels where practical.
+- [x] Add visible focus states that are not color-only.
+- [x] Implement correct tablist roles, `aria-controls`, roving focus, and arrow-key navigation.
+- [x] Stop auto-rotation on hover, keyboard focus, user interaction, and reduced-motion preference.
+- [x] Provide an explicit pause control for rotating content.
+- [x] Give announcement dialogs initial focus, focus trapping, Escape behavior, accessible names, and focus return.
+- [x] Ensure a nondismissible announcement never prevents access to the application or assistive controls.
+- [x] Replace noninteractive elements styled as links/buttons with actual controls or plain text.
+- [x] Label icon-only buttons and expose state changes to assistive technology.
+- [x] Verify form errors are associated, announced, and recoverable.
 - [ ] Test landing, login, chat, tasks, settings, pricing, billing, export, delete, and admin journeys at 200% and 400% zoom.
-- [ ] Add automated axe checks to Playwright while retaining manual keyboard and screen-reader testing.
+- [x] Add automated axe checks to Playwright while retaining manual keyboard and screen-reader testing.
 - [ ] Test with keyboard only, VoiceOver/Safari, NVDA/Firefox or Chrome, and mobile screen readers.
-- [ ] Fix invalid or ineffective classes such as `hover:text-red-650`.
+- [x] Fix invalid or ineffective classes such as `hover:text-red-650`.
 
 ## 2.8 Make public presentation accurate and consistent
 
-- [ ] Resolve “one active intention” versus the actual three-free-goal limit.
-- [ ] Remove claims for calendar, voice, deep memory, advanced insights, paid exports, founder badge/channel, and other unavailable capabilities.
-- [ ] Mark roadmap features clearly as planned or beta instead of implying availability.
-- [ ] Verify every marketing claim against an automated feature/entitlement test or documented product behavior.
-- [ ] Replace `/dashboard`, `/reviews`, and `/goals/[goalId]` redirects with real pages or remove all links/promises to them.
-- [ ] Add a real feedback/report-bug link to the development announcement.
-- [ ] Reframe the current development notice as a private/public beta message appropriate to the release stage.
+- [x] Resolve “one active intention” versus the actual three-free-goal limit.
+- [x] Remove claims for calendar, voice, deep memory, advanced insights, paid exports, founder badge/channel, and other unavailable capabilities.
+- [x] Mark roadmap features clearly as planned or beta instead of implying availability.
+- [x] Verify every marketing claim against an automated feature/entitlement test or documented product behavior.
+- [x] Replace `/dashboard`, `/reviews`, and `/goals/[goalId]` redirects with real pages or remove all links/promises to them.
+- [x] Add a real feedback/report-bug link to the development announcement.
+- [x] Reframe the current development notice as a private/public beta message appropriate to the release stage.
 - [ ] Verify the support email is owned, monitored, protected by SPF/DKIM/DMARC, and has response expectations.
-- [ ] Generate the copyright year rather than hard-coding it.
-- [ ] Point footer/account navigation at real destinations rather than routes that only redirect.
-- [ ] Remove the stray/overbroad `*:text-white` login selector and style intended elements semantically.
+- [x] Generate the copyright year rather than hard-coding it.
+- [x] Point footer/account navigation at real destinations rather than routes that only redirect.
+- [x] Remove the stray/overbroad `*:text-white` login selector and style intended elements semantically.
 - [ ] Verify the oversized login headline and all auth content on 320px-wide devices.
 
 ### G2 exit criteria

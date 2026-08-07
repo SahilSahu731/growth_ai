@@ -1,13 +1,14 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from "convex-test"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { api } from "./_generated/api"
 import schema from "./schema"
 
 const modules = import.meta.glob("./**/*.ts")
-const identity = { tokenIdentifier: "https://growthai.local|growthai-next-server" }
+const exportIdentity = { tokenIdentifier: "test|member", subject: "member:large-user", role: "member", scope: "account:export" }
+const deleteIdentity = { tokenIdentifier: "test|member", subject: "member:large-user", role: "member", scope: "account:delete" }
 
 describe("account portability and deletion", () => {
   it("exports and deletes a large synthetic account without leaving owned records", async () => {
@@ -30,13 +31,20 @@ describe("account portability and deletion", () => {
       await ctx.db.insert("aiDailyUsage", { userId: "large-user", date: "2026-08-07", requests: 1, inputTokens: 10, outputTokens: 5, updatedAt: timestamp })
     })
 
-    const server = test.withIdentity(identity)
-    const exported = await server.query(api.account.exportUserData, { userId: "large-user" })
+    const exported = await test.withIdentity(exportIdentity).query(api.account.exportUserData, { userId: "large-user" })
     expect(exported?.messages).toHaveLength(150)
     expect(exported?.account.email).toBe("large@example.test")
 
-    await expect(server.mutation(api.account.deleteUserAccount, { userId: "large-user", confirmationEmail: "wrong@example.test" })).resolves.toBe(false)
-    await expect(server.mutation(api.account.deleteUserAccount, { userId: "large-user", confirmationEmail: "large@example.test" })).resolves.toBe(true)
+    await expect(test.withIdentity(deleteIdentity).mutation(api.account.requestAccountDeletion, { userId: "large-user", confirmationEmail: "wrong@example.test" })).resolves.toBeNull()
+    const deletion = await test.withIdentity(deleteIdentity).mutation(api.account.requestAccountDeletion, { userId: "large-user", confirmationEmail: "large@example.test" })
+    expect(deletion?.status).toBe("queued")
+    vi.useFakeTimers()
+    await test.finishAllScheduledFunctions(vi.runAllTimers)
+    vi.useRealTimers()
+    const authIdentity = { tokenIdentifier: "test|auth", subject: "oauth:large@example.test", role: "auth", scope: "users:auth" }
+    await expect(test.withIdentity(authIdentity).mutation(api.users.upsertOAuth, {
+      email: "large@example.test", name: "Restored fixture", provider: "google", providerAccountId: "large-subject", emailVerified: true,
+    })).rejects.toThrow("cannot be restored automatically")
     const remaining = await test.run(async (ctx) => ({
       users: await ctx.db.query("users").collect(),
       conversations: await ctx.db.query("operatorConversations").collect(),

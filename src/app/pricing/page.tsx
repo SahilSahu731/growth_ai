@@ -9,7 +9,7 @@ import { SiteFooter } from "@/components/landing/site-footer"
 import { getAccountOverview } from "@/lib/data/account"
 
 export const dynamic = "force-dynamic"
-export const metadata = { title: "Pricing", description: "Choose a GrowthAI plan for AI-guided goals, focused tasks, and deeper personal growth insights.", alternates: { canonical: "/pricing" } }
+export const metadata = { title: "Pricing", description: "Choose a GrowthAI plan for AI-guided goals, focused tasks, and grounded weekly reflection.", alternates: { canonical: "/pricing" } }
 
 export default async function PricingPage() {
   const session = await getServerSession(authOptions)

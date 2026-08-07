@@ -18,6 +18,15 @@ function signature(payload: string, secret: string): string {
   return createHmac("sha256", secret).update(payload).digest("base64url")
 }
 
+export function readAdminSessionEmail(token: string): string | null {
+  const [encodedPayload, signaturePart, extra] = token.split(".")
+  if (!encodedPayload || !signaturePart || extra) return null
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as { email?: unknown }
+    return typeof payload.email === "string" ? payload.email.trim().toLowerCase() : null
+  } catch { return null }
+}
+
 export function createAdminSessionToken(input: {
   email: string
   secret: string

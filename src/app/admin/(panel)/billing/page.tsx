@@ -3,7 +3,7 @@ import { CreditCard, ReceiptText } from "lucide-react"
 
 import { AdminPagination } from "@/components/admin/admin-pagination"
 import { getAdminBilling } from "@/lib/data/admin"
-import { requireAdminPageSession } from "@/lib/admin/page-auth"
+import { requireAdminPageRole } from "@/lib/admin/page-auth"
 
 export const metadata = { title: "Billing" }
 
@@ -12,7 +12,7 @@ function date(value: string) { return new Intl.DateTimeFormat("en", { dateStyle:
 function money(amount: number, currency: string) { return (amount / 100).toLocaleString("en-IN", { style: "currency", currency }) }
 
 export default async function AdminBillingPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
-  await requireAdminPageSession()
+  await requireAdminPageRole("billing")
   const params = await searchParams
   const data = await getAdminBilling(pageNumber(params.page))
   const active = data.subscriptions.filter((item) => ["active", "authenticated", "charged"].includes(item.status)).length

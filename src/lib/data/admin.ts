@@ -5,6 +5,10 @@ import type { AnnouncementAlignment, AnnouncementButtonStyle, AnnouncementPlacem
 
 export type AdminPlanTier = "free" | "pro" | "founder" | "team"
 
+function admin(subject: string, scope: string) {
+  return { role: "admin" as const, subject: `admin:${subject.toLowerCase().slice(0, 160)}`, scope }
+}
+
 export type AdminUser = {
   id: string
   name: string
@@ -44,51 +48,67 @@ export type AdminUserDetail = {
 }
 
 export function consumeAdminLoginAttempt(key: string): Promise<{ allowed: boolean; retryAt: string | null }> {
-  return convexMutation("admin:consumeLoginAttempt", { key })
+  return convexMutation("admin:consumeLoginAttempt", { key }, admin("login-throttle", "admin:login"))
 }
 
 export function clearAdminLoginAttempts(key: string): Promise<boolean> {
-  return convexMutation("admin:clearLoginAttempts", { key })
+  return convexMutation("admin:clearLoginAttempts", { key }, admin("login-throttle", "admin:login"))
 }
 
-export function recordAdminAudit(input: { actor: string; action: string; targetType: string; targetId?: string; summary: string }): Promise<boolean> {
-  return convexMutation("admin:recordAudit", input)
+export function createAdminSessionRecord(input: { tokenHash: string; email: string; roles: string[]; deviceHash: string; absoluteExpiresAt: string }): Promise<boolean> {
+  return convexMutation("admin:createSession", input, admin(input.email, "admin:session"))
+}
+
+export function validateAdminSessionRecord(input: { tokenHash: string; email: string; deviceHash: string }): Promise<{ email: string; roles: string[]; absoluteExpiresAt: string } | null> {
+  return convexMutation("admin:validateSession", input, admin(input.email, "admin:session"))
+}
+
+export function revokeAdminSessionRecord(tokenHash: string, email: string): Promise<boolean> {
+  return convexMutation("admin:revokeSession", { tokenHash }, admin(email, "admin:session"))
+}
+
+export function listAdminSessionRecords(email: string): Promise<Array<{ id: string; roles: string[]; device: string; createdAt: string; lastSeenAt: string; idleExpiresAt: string; absoluteExpiresAt: string; revokedAt: string | null }>> {
+  return convexQuery("admin:listSessions", { email }, admin(email, "admin:session"))
+}
+
+export function recordAdminAudit(input: { actor: string; actorRole?: string; action: string; targetType: string; targetId?: string; reason?: string; ticket?: string; requestId?: string; result?: string; summary: string }): Promise<boolean> {
+  return convexMutation("admin:recordAudit", input, admin(input.actor, "admin:audit"))
 }
 
 export function getAdminDashboard(): Promise<AdminDashboard> {
-  return convexQuery("admin:getDashboard", {})
+  return convexQuery("admin:getDashboard", {}, admin("session", "admin:read"))
 }
 
 export function listAdminUsers(input: { search: string; page: number; pageSize: number }): Promise<{ items: AdminUser[]; total: number; page: number; pageSize: number; pages: number }> {
-  return convexQuery("admin:listUsers", input)
+  return convexQuery("admin:listUsers", input, admin("session", "admin:read"))
 }
 
-export function getAdminUserDetail(userId: string): Promise<AdminUserDetail | null> {
-  return convexQuery("admin:getUserDetail", { userId })
+export function getAdminUserDetail(input: { userId: string; actor: string; reason: string; ticket: string; requestId: string }): Promise<AdminUserDetail | null> {
+  return convexMutation("admin:getUserDetail", input, admin(input.actor, "admin:sensitive-read"))
 }
 
 export function updateAdminUser(input: { actor: string; userId: string; name: string; planTier: AdminPlanTier }): Promise<AdminUser> {
-  return convexMutation("admin:updateUser", input)
+  return convexMutation("admin:updateUser", input, admin(input.actor, "admin:write"))
 }
 
 export function setAdminUserAccess(input: { actor: string; userId: string; suspended: boolean; reason?: string }): Promise<boolean> {
-  return convexMutation("admin:setUserAccess", input)
+  return convexMutation("admin:setUserAccess", input, admin(input.actor, "admin:write"))
 }
 
 export function setAdminGoalStatus(input: { actor: string; userId: string; goalId: string; status: "active" | "completed" | "archived" }): Promise<boolean> {
-  return convexMutation("admin:setGoalStatus", input)
+  return convexMutation("admin:setGoalStatus", input, admin(input.actor, "admin:write"))
 }
 
 export function setAdminTaskStatus(input: { actor: string; userId: string; taskId: string; status: "todo" | "done" | "dismissed" }): Promise<boolean> {
-  return convexMutation("admin:setTaskStatus", input)
+  return convexMutation("admin:setTaskStatus", input, admin(input.actor, "admin:write"))
 }
 
 export function deleteAdminConversation(input: { actor: string; userId: string; conversationId: string }): Promise<boolean> {
-  return convexMutation("admin:deleteConversation", input)
+  return convexMutation("admin:deleteConversation", input, admin(input.actor, "admin:delete"))
 }
 
 export function deleteAdminUser(input: { actor: string; userId: string; confirmationEmail: string }): Promise<boolean> {
-  return convexMutation("admin:deleteUser", input)
+  return convexMutation("admin:deleteUser", input, admin(input.actor, "admin:delete"))
 }
 
 export type AdminBilling = {
@@ -100,7 +120,7 @@ export type AdminBilling = {
 }
 
 export function getAdminBilling(page: number, pageSize = 25): Promise<AdminBilling> {
-  return convexQuery("admin:getBilling", { page, pageSize })
+  return convexQuery("admin:getBilling", { page, pageSize }, admin("session", "admin:billing"))
 }
 
 export type AdminActivity = {
@@ -110,19 +130,19 @@ export type AdminActivity = {
   pages: number
 }
 
-export function getAdminActivity(page: number, pageSize = 30): Promise<AdminActivity> {
-  return convexQuery("admin:getActivity", { page, pageSize })
+export function getAdminActivity(input: { page: number; actor: string; reason: string; ticket: string; requestId: string }, pageSize = 30): Promise<AdminActivity> {
+  return convexMutation("admin:getActivity", { ...input, pageSize }, admin(input.actor, "admin:sensitive-read"))
 }
 
 export type AdminAuditPage = {
-  items: Array<{ id: string; actor: string; action: string; targetType: string; targetId?: string; summary: string; createdAt: string }>
+  items: Array<{ id: string; actor: string; actorRole?: string; action: string; targetType: string; targetId?: string; reason?: string; ticket?: string; requestId?: string; result?: string; summary: string; createdAt: string }>
   total: number
   page: number
   pages: number
 }
 
 export function getAdminAuditLogs(page: number, pageSize = 30): Promise<AdminAuditPage> {
-  return convexQuery("admin:getAuditLogs", { page, pageSize })
+  return convexQuery("admin:getAuditLogs", { page, pageSize }, admin("session", "admin:audit-read"))
 }
 
 export type AdminAnnouncement = {
@@ -149,7 +169,7 @@ export type AdminAnnouncement = {
 }
 
 export function listAdminAnnouncements(): Promise<AdminAnnouncement[]> {
-  return convexQuery("admin:listAnnouncements", {})
+  return convexQuery("admin:listAnnouncements", {}, admin("session", "admin:read"))
 }
 
 type AnnouncementInput = {
@@ -173,13 +193,13 @@ type AnnouncementInput = {
 }
 
 export function createAdminAnnouncement(input: AnnouncementInput & { actor: string }): Promise<AdminAnnouncement> {
-  return convexMutation("admin:createAnnouncement", input)
+  return convexMutation("admin:createAnnouncement", input, admin(input.actor, "admin:write"))
 }
 
 export function updateAdminAnnouncement(input: AnnouncementInput & { actor: string; announcementId: string }): Promise<AdminAnnouncement> {
-  return convexMutation("admin:updateAnnouncement", input)
+  return convexMutation("admin:updateAnnouncement", input, admin(input.actor, "admin:write"))
 }
 
 export function deleteAdminAnnouncement(input: { actor: string; announcementId: string }): Promise<boolean> {
-  return convexMutation("admin:deleteAnnouncement", input)
+  return convexMutation("admin:deleteAnnouncement", input, admin(input.actor, "admin:delete"))
 }

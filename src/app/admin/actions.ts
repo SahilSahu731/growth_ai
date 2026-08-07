@@ -4,12 +4,15 @@ import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
 import {
-  adminLoginFingerprint,
+  adminHasRole,
+  adminSessionHasRecentMfa,
+  adminLoginFingerprints,
   createAdminSession,
   deleteAdminSession,
   getAdminSession,
   verifyAdminCredentials,
 } from "@/lib/admin/auth"
+import type { AdminRole } from "@/lib/admin/credential-config"
 import {
   clearAdminLoginAttempts,
   consumeAdminLoginAttempt,
@@ -39,14 +42,23 @@ function rawText(formData: FormData, name: string): string {
   return typeof value === "string" ? value : ""
 }
 
-async function requireAdmin() {
+async function requireAdmin(...roles: AdminRole[]) {
   const session = await getAdminSession()
   if (!session) throw new Error("Your admin session has expired. Sign in again.")
+  if (roles.length && !adminHasRole(session, ...roles)) throw new Error("Your administrator role does not allow this operation.")
+  return session
+}
+
+async function requireFreshAdmin(...roles: AdminRole[]) {
+  const session = await requireAdmin(...roles)
+  if (!adminSessionHasRecentMfa(session)) throw new Error("Fresh administrator MFA is required. Sign out and sign in again before this sensitive operation.")
   return session
 }
 
 function safeMessage(error: unknown): string {
   if (error instanceof Error && error.message.includes("session has expired")) return error.message
+  if (error instanceof Error && error.message.includes("administrator role")) return error.message
+  if (error instanceof Error && error.message.includes("Fresh administrator MFA")) return error.message
   if (!(error instanceof Error)) return "The change could not be completed. Please try again."
   const coded = error.message.match(/^(GOAL_LIMIT_REACHED|USER_NOT_FOUND|GOAL_NOT_FOUND|TASK_NOT_FOUND|CONVERSATION_NOT_FOUND):\s*(.+)$/)
   if (coded) return coded[2]
@@ -57,6 +69,7 @@ function safeMessage(error: unknown): string {
     "Announcement links must use HTTPS or a local path", "Start time is invalid", "End time is invalid",
     "End time must be after start time", "Choose a valid announcement style",
     "Choose a valid announcement placement", "Choose a valid text alignment", "Choose a valid button style",
+    "Announcement text and background must have at least 4.5:1 contrast", "Announcement accent and background must have at least 3:1 contrast",
   ].includes(error.message) || /^(Background|Text|Accent) color must be/.test(error.message)
   return allowed ? error.message : "The change could not be completed. Please try again."
 }
@@ -64,19 +77,23 @@ function safeMessage(error: unknown): string {
 export async function adminLoginAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const email = text(formData, "email").toLowerCase()
   const password = rawText(formData, "password")
-  if (!email || !password) return { error: "Enter your admin email and password." }
-  if (email.length > 320 || password.length > 1024) return { error: "The admin credentials are not valid." }
+  const otp = text(formData, "otp")
+  if (!email || !password || !otp) return { error: "Enter your admin email, password, and authenticator code." }
+  if (email.length > 320 || password.length > 1024 || !/^\d{6}$/.test(otp)) return { error: "The admin credentials are not valid." }
 
   try {
-    const fingerprint = await adminLoginFingerprint()
-    const throttle = await consumeAdminLoginAttempt(fingerprint)
-    if (!throttle.allowed) return { error: "Too many attempts. Wait 30 minutes before trying again." }
+    const fingerprints = await adminLoginFingerprints(email)
+    const throttles = await Promise.all(fingerprints.map(consumeAdminLoginAttempt))
+    if (throttles.some((item) => !item.allowed)) {
+      await recordAdminAudit({ actor: email, action: "admin.login.blocked", targetType: "admin_session", summary: "Credential-stuffing controls blocked an administrator login attempt." }).catch(() => undefined)
+      return { error: "Too many attempts. Wait before trying again." }
+    }
 
-    const valid = await verifyAdminCredentials({ email, password })
+    const valid = await verifyAdminCredentials({ email, password, otp })
     if (!valid) return { error: "The admin credentials are not valid." }
 
-    await createAdminSession()
-    await clearAdminLoginAttempts(fingerprint)
+    await createAdminSession(email)
+    await Promise.all(fingerprints.map(clearAdminLoginAttempts))
     await recordAdminAudit({
       actor: email,
       action: "admin.login",
@@ -106,7 +123,7 @@ export async function adminLogoutAction(): Promise<void> {
 
 export async function updateUserAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireFreshAdmin("support-write", "billing")
     const userId = text(formData, "userId")
     const name = text(formData, "name")
     const planTier = text(formData, "planTier")
@@ -123,7 +140,7 @@ export async function updateUserAction(_state: AdminActionState, formData: FormD
 
 export async function setUserAccessAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireFreshAdmin("owner")
     const userId = text(formData, "userId")
     const suspended = text(formData, "suspended") === "true"
     const reason = text(formData, "reason")
@@ -141,7 +158,7 @@ export async function setUserAccessAction(_state: AdminActionState, formData: Fo
 
 export async function setGoalStatusAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdmin("support-write")
     const userId = text(formData, "userId")
     const goalId = text(formData, "goalId")
     const status = text(formData, "status")
@@ -157,7 +174,7 @@ export async function setGoalStatusAction(_state: AdminActionState, formData: Fo
 
 export async function setTaskStatusAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdmin("support-write")
     const userId = text(formData, "userId")
     const taskId = text(formData, "taskId")
     const status = text(formData, "status")
@@ -173,7 +190,7 @@ export async function setTaskStatusAction(_state: AdminActionState, formData: Fo
 
 export async function deleteConversationAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireFreshAdmin("owner")
     const userId = text(formData, "userId")
     const conversationId = text(formData, "conversationId")
     if (!userId || !conversationId) return { error: "Conversation not found." }
@@ -189,7 +206,7 @@ export async function deleteConversationAction(_state: AdminActionState, formDat
 
 export async function deleteUserAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireFreshAdmin("owner")
     const userId = text(formData, "userId")
     const confirmationEmail = text(formData, "confirmationEmail").toLowerCase()
     if (!userId || !confirmationEmail) return { error: "Enter the user email to confirm permanent deletion." }
@@ -248,7 +265,7 @@ function announcementInput(formData: FormData) {
 
 export async function createAnnouncementAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdmin("support-write")
     await createAdminAnnouncement({ actor: session.email, ...announcementInput(formData) })
     revalidatePath("/admin/announcements")
     return { success: "Announcement created." }
@@ -259,7 +276,7 @@ export async function createAnnouncementAction(_state: AdminActionState, formDat
 
 export async function updateAnnouncementAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdmin("support-write")
     const announcementId = text(formData, "announcementId")
     if (!announcementId) return { error: "Announcement not found" }
     await updateAdminAnnouncement({ actor: session.email, announcementId, ...announcementInput(formData) })
@@ -272,7 +289,7 @@ export async function updateAnnouncementAction(_state: AdminActionState, formDat
 
 export async function deleteAnnouncementAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdmin("owner")
     const announcementId = text(formData, "announcementId")
     if (!announcementId) return { error: "Announcement not found" }
     await deleteAdminAnnouncement({ actor: session.email, announcementId })

@@ -1,47 +1,31 @@
-# GrowthAI admin setup
+# Administrator security setup
 
-The admin workspace lives at `/admin` and is intentionally separate from member authentication. It does not add an admin role to `users`, and a Google-authenticated member session grants no admin access.
+Production administration uses named accounts with bcrypt passwords, mandatory TOTP MFA, explicit roles, a dedicated session secret, and server-side session records. Member credentials and `AUTH_SECRET` are never accepted for admin sessions.
 
-## Required server variables
+## Configure named accounts
 
-Configure these in every deployment environment. Never prefix them with `NEXT_PUBLIC_`.
+Generate a bcrypt hash for each administrator and a unique Base32 TOTP secret. Enroll the secret in that administrator's authenticator application through a separately verified channel. Then set:
 
 ```dotenv
-ADMIN_EMAIL=owner@example.com
-ADMIN_PASSWORD_HASH=$2b$12$...
-ADMIN_SESSION_SECRET=a-long-random-server-only-value
-ADMIN_SESSION_VERSION=1
+ADMIN_SESSION_SECRET="a distinct random value of at least 32 bytes"
+ADMIN_SESSION_VERSION="1"
+ADMIN_ACCOUNTS_JSON='[{"email":"owner@example.com","passwordHash":"$2b$12$...","totpSecret":"BASE32...","roles":["owner"]}]'
+TRUSTED_PROXY_HOPS="1"
 ```
 
-Generate a password hash:
+Supported roles are `support-read`, `support-write`, `billing`, `security-auditor`, and `owner`. Give each person only the roles required for their job. Legacy `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, `ADMIN_TOTP_SECRET`, and `ADMIN_ROLES` exist only for local migration and fail the production configuration gate.
 
-```bash
-node -e "console.log(require('bcryptjs').hashSync('replace-me', 12))"
-```
+Sessions have a 30-minute rolling idle expiry and eight-hour absolute expiry. Each session is bound to a server-salted device/network fingerprint, stored in Convex, listable on the Security screen, and revocable on logout. Incrementing `ADMIN_SESSION_VERSION` invalidates all signed cookies; revoke server records as part of an incident.
 
-Replace `replace-me` locally before running the command. `ADMIN_PASSWORD_HASH` must contain a bcrypt value; plaintext admin passwords are rejected in every environment. Do not commit the plaintext value or paste it into tickets or logs. Generate a dedicated session signing key with a cryptographically secure generator such as:
+Sensitive user/message views require a support reason and case/ticket reference. Reads record actor, role, reason, ticket, target, request ID, result, and time. Mutating actions remain separately role checked and audited.
 
-```bash
-openssl rand -base64 48
-```
+Viewing account/message content and changing plans, access, conversations, or user deletion requires an administrator login with password and TOTP from the last ten minutes. If the window expires, sign out and complete MFA again. Member account deletion and AI-memory clearing similarly require a member sign-in from the last fifteen minutes.
 
-Deploy the updated Convex schema and functions before the Next.js release:
+## Still required outside the repository
 
-```bash
-npx convex deploy
-npm run build
-```
-
-## Security behavior
-
-- Login requires only the configured admin email and password.
-- Only bcrypt password hashes are accepted.
-- The admin session secret must be dedicated and at least 32 characters; member authentication secrets are never used as a fallback.
-- Failed attempts are persistently limited: more than five attempts per client fingerprint within 15 minutes blocks attempts for 30 minutes.
-- The admin session is an HMAC-SHA256 signed, eight-hour `HttpOnly` cookie restricted to `/admin`; production also sets `Secure`, and `SameSite=Strict` is always used.
-- Every management mutation, login, and logout is written to `adminAuditLogs`.
-- Every page and every server action independently validates the admin session.
-- Set a new `ADMIN_SESSION_VERSION` value to revoke all existing admin sessions immediately.
-- Suspending a member removes their product access on the next NextAuth session read without deleting their data.
-
-Use a unique password and session signing secret, store them securely, and restrict access to deployment environment settings. Rotate both if either may have been exposed.
+- Protect administrator email accounts and the secret manager with phishing-resistant MFA.
+- Maintain two owners; no shared accounts.
+- Store emergency recovery material in two separate custodians' vaults. Both must approve use, and the event must be entered in the audit system.
+- Split admin hosting from the member runtime and inject only the admin Convex key.
+- Configure alerts for blocked login waves, bulk reads, exports, plan/access changes, and deletions.
+- Export audit events to write-once/tamper-evident storage.

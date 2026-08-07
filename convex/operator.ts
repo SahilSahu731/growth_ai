@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { mutationGeneric as mutation, paginationOptsValidator, queryGeneric as query } from "convex/server"
 import { v } from "convex/values"
-import { requireServer } from "./lib/serverAuth"
+import { requireMember, requireScope } from "./lib/serverAuth"
 import { conversationTitle } from "./lib/conversationTitle"
 import { assertGoalCanBeActive, goalLimitForPlan } from "./lib/goalLimits"
 
@@ -132,7 +132,7 @@ async function insertConversation(ctx: any, userId: string) {
 export const createConversation = mutation({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
-    await requireServer(ctx)
+    await requireMember(ctx, userId, "operator:member")
     return insertConversation(ctx, userId)
   },
 })
@@ -140,7 +140,7 @@ export const createConversation = mutation({
 export const ensureConversation = mutation({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
-    await requireServer(ctx)
+    await requireMember(ctx, userId, "operator:member")
     const existing = await ctx.db
       .query("operatorConversations")
       .withIndex("by_user_updated", (q: any) => q.eq("userId", userId))
@@ -155,7 +155,7 @@ export const ensureConversation = mutation({
 export const getWorkspace = query({
   args: { userId: v.string(), conversationId: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) return null
 
@@ -196,7 +196,7 @@ export const getWorkspace = query({
 export const getMessagePage = query({
   args: { userId: v.string(), conversationId: v.string(), paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) throw new Error("CONVERSATION_NOT_FOUND: Conversation not found")
     const result = await ctx.db
@@ -208,10 +208,21 @@ export const getMessagePage = query({
   },
 })
 
+export const getGoal = query({
+  args: { userId: v.string(), goalId: v.string() },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    const goal = await goalForUser(ctx, args.goalId, args.userId)
+    if (!goal) return null
+    const tasks = await ctx.db.query("operatorTasks").withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId)).collect()
+    return { goal: clean(goal), tasks: tasks.filter((task: any) => task.userId === args.userId).sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map(clean) }
+  },
+})
+
 export const renameConversation = mutation({
   args: { userId: v.string(), conversationId: v.string(), title: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) throw new Error("CONVERSATION_NOT_FOUND: Conversation not found")
     const title = args.title.replace(/\s+/g, " ").trim().slice(0, 64)
@@ -224,7 +235,7 @@ export const renameConversation = mutation({
 export const setConversationPinned = mutation({
   args: { userId: v.string(), conversationId: v.string(), pinned: v.boolean() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) throw new Error("CONVERSATION_NOT_FOUND: Conversation not found")
     const timestamp = now()
@@ -236,7 +247,7 @@ export const setConversationPinned = mutation({
 export const deleteConversation = mutation({
   args: { userId: v.string(), conversationId: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) return false
     const messages = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId)).collect()
@@ -259,7 +270,7 @@ export const deleteConversation = mutation({
 export const createGoal = mutation({
   args: { userId: v.string(), title: v.string(), description: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const title = normalizeGoalTitle(args.title)
     const description = args.description.trim().slice(0, 500)
     if (title.length < 3) throw new Error("INVALID_GOAL_TITLE: Goal title must be at least 3 characters")
@@ -287,7 +298,7 @@ export const updateGoal = mutation({
     status: v.union(v.literal("active"), v.literal("completed"), v.literal("archived")),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const goal = await goalForUser(ctx, args.goalId, args.userId)
     if (!goal) throw new Error("GOAL_NOT_FOUND: Goal not found")
     const title = normalizeGoalTitle(args.title)
@@ -315,7 +326,7 @@ export const updateGoal = mutation({
 export const deleteGoal = mutation({
   args: { userId: v.string(), goalId: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const goal = await goalForUser(ctx, args.goalId, args.userId)
     if (!goal) throw new Error("GOAL_NOT_FOUND: Goal not found")
     const tasks = await ctx.db
@@ -339,7 +350,7 @@ export const beginTurn = mutation({
     userMessage: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) throw new Error("CONVERSATION_NOT_FOUND: Conversation not found")
     if (!/^[A-Za-z0-9_-]{16,100}$/.test(args.requestId)) throw new Error("INVALID_REQUEST_ID: Invalid message request")
@@ -452,7 +463,7 @@ export const completeTurn = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) throw new Error("CONVERSATION_NOT_FOUND: Conversation not found")
     const userMessage = await ctx.db.query("operatorMessages").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.userMessageId)).unique()
@@ -520,7 +531,7 @@ export const failTurn = mutation({
     failureCode: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const userMessage = await ctx.db.query("operatorMessages").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.userMessageId)).unique()
     if (!userMessage || userMessage.userId !== args.userId || userMessage.conversationId !== args.conversationId || userMessage.role !== "user") return false
     if (userMessage.generationStatus !== "pending" || userMessage.generationLeaseId !== args.leaseId) return false
@@ -537,7 +548,7 @@ export const failTurn = mutation({
 export const recordProviderOutcome = mutation({
   args: { provider: v.literal("gemini"), success: v.boolean() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "background", "operator:provider")
     const timestamp = now()
     const row = await ctx.db.query("aiProviderCircuit").withIndex("by_key", (q: any) => q.eq("key", args.provider)).unique()
     if (args.success) {
@@ -555,7 +566,7 @@ export const recordProviderOutcome = mutation({
 export const acceptTasks = mutation({
   args: { userId: v.string(), conversationId: v.string(), messageId: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) throw new Error("CONVERSATION_NOT_FOUND: Conversation not found")
     const message = await ctx.db
@@ -652,7 +663,7 @@ export const setTaskStatus = mutation({
     status: v.union(v.literal("todo"), v.literal("done"), v.literal("dismissed")),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const task = await ctx.db
       .query("operatorTasks")
       .withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.taskId))
@@ -674,7 +685,7 @@ export const updateTask = mutation({
     estimatedMinutes: v.number(), completionCondition: v.string(), scheduledFor: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireMember(ctx, args.userId, "operator:member")
     const task = await ctx.db.query("operatorTasks").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.taskId)).unique()
     if (!task || task.userId !== args.userId) throw new Error("TASK_NOT_FOUND: Task not found")
     const goal = await goalForUser(ctx, args.goalId, args.userId)

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { getServerSession } from "next-auth"
 import { ArrowUpRight, CalendarClock, CheckCircle2, CreditCard, History, LockKeyhole, ShieldCheck } from "lucide-react"
 
@@ -59,6 +60,7 @@ export default async function BillingPage() {
       <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-xl bg-neutral-100"><History className="size-4 text-neutral-500" /></span><div><h2 className="text-lg font-black text-neutral-900">Subscription history</h2><p className="mt-1 text-xs text-neutral-500">Provider-confirmed lifecycle records for this account.</p></div></div>
       {billing.subscriptions.length ? <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[700px] text-left"><thead><tr className="border-b border-neutral-200 text-[10px] uppercase tracking-wider text-neutral-400"><th className="pb-3">Plan</th><th className="pb-3">Status</th><th className="pb-3">Amount</th><th className="pb-3">Period</th><th className="pb-3 text-right">Updated</th></tr></thead><tbody>{billing.subscriptions.map((item) => <tr key={item.id} className="border-b border-neutral-100 last:border-0"><td className="py-4 text-xs font-bold capitalize text-neutral-800">{item.planTier}</td><td className="py-4"><span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase ${statusStyle(item.status)}`}>{item.status}</span></td><td className="py-4 text-xs text-neutral-500">{money(item.amount, item.currency, locale)}</td><td className="py-4 text-[10px] text-neutral-500">{date(item.periodStart, locale, billing.timezone)} – {date(item.periodEnd, locale, billing.timezone)}</td><td className="py-4 text-right text-[10px] text-neutral-400">{date(item.updatedAt, locale, billing.timezone)}</td></tr>)}</tbody></table></div> : <p className="mt-6 rounded-2xl border border-dashed border-neutral-300 py-10 text-center text-xs text-neutral-500">No subscription history yet.</p>}
     </section>
+    <p className="text-center text-sm leading-6 text-neutral-500">Subscription use is subject to the <Link href="/terms" className="underline underline-offset-4">Terms</Link> and <Link href="/privacy" className="underline underline-offset-4">Privacy Notice</Link>. Cancellation and refund information is disclosed before checkout.</p>
   </div>
 }
 

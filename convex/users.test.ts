@@ -7,7 +7,7 @@ import { api } from "./_generated/api"
 import schema from "./schema"
 
 const modules = import.meta.glob("./**/*.ts")
-const identity = { tokenIdentifier: "https://growthai.local|growthai-next-server" }
+const identity = { tokenIdentifier: "test|auth", subject: "oauth:alex@example.test", role: "auth", scope: "users:auth" }
 
 describe("OAuth account ownership", () => {
   it("requires a verified Google email", async () => {

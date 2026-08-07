@@ -7,7 +7,11 @@ import { api } from "./_generated/api"
 import schema from "./schema"
 
 const modules = import.meta.glob("./**/*.ts")
-const identity = { tokenIdentifier: "https://growthai.local|growthai-next-server" }
+const identity = { tokenIdentifier: "test|member", subject: "member:user-1", role: "member", scope: "operator:member" }
+const adminIdentity = { tokenIdentifier: "test|admin", subject: "admin:test", role: "admin", scope: "admin:read" }
+const adminWriteIdentity = { ...adminIdentity, scope: "admin:write" }
+const backgroundIdentity = { tokenIdentifier: "test|background", subject: "background:ai-provider", role: "background", scope: "operator:provider" }
+const billingIdentity = { ...identity, scope: "billing:write" }
 
 function stamp(index = 0) {
   return new Date(Date.UTC(2026, 7, 1, 0, 0, index)).toISOString()
@@ -157,7 +161,7 @@ describe("operator invariants", () => {
         legacyId: "archived-1", userId: "user-1", title: "Archived", description: "Fixture", status: "archived", createdAt: stamp(), updatedAt: stamp(),
       })
     })
-    const server = t.withIdentity(identity)
+    const server = t.withIdentity(adminWriteIdentity)
     await expect(server.mutation(api.admin.updateUser, { actor: "owner@example.test", userId: "user-1", name: "Alex Example", planTier: "free" })).rejects.toThrow("GOAL_LIMIT_REACHED")
 
     await t.run(async (ctx) => {
@@ -243,7 +247,7 @@ describe("operator invariants", () => {
         })
       }
     })
-    const dashboard = await t.withIdentity(identity).query(api.admin.getDashboard, {})
+    const dashboard = await t.withIdentity(adminIdentity).query(api.admin.getDashboard, {})
     expect(dashboard.totals.completedTasks).toBe(2)
     expect(dashboard.totals.openTasks).toBe(1)
     expect(dashboard.lastSevenDays.completedTasks).toBe(1)
@@ -346,15 +350,15 @@ describe("operator invariants", () => {
   it("opens and resets the global provider circuit after consecutive outcomes", async () => {
     const t = convexTest(schema, modules)
     await seedAccount(t)
-    const server = t.withIdentity(identity)
+    const server = t.withIdentity(backgroundIdentity)
     for (let failure = 1; failure <= 5; failure += 1) {
       const state = await server.mutation(api.operator.recordProviderOutcome, { provider: "gemini", success: false })
       expect(state.consecutiveFailures).toBe(failure)
     }
-    let workspace = await server.query(api.operator.getWorkspace, { userId: "user-1", conversationId: "conversation-1" })
+    let workspace = await t.withIdentity(identity).query(api.operator.getWorkspace, { userId: "user-1", conversationId: "conversation-1" })
     expect(workspace?.providerCircuitOpen).toBe(true)
     await server.mutation(api.operator.recordProviderOutcome, { provider: "gemini", success: true })
-    workspace = await server.query(api.operator.getWorkspace, { userId: "user-1", conversationId: "conversation-1" })
+    workspace = await t.withIdentity(identity).query(api.operator.getWorkspace, { userId: "user-1", conversationId: "conversation-1" })
     expect(workspace?.providerCircuitOpen).toBe(false)
   })
 
@@ -396,9 +400,10 @@ describe("operator invariants", () => {
     const t = convexTest(schema, modules)
     await seedAccount(t)
     const server = t.withIdentity(identity)
-    await expect(server.mutation(api.operator.createConversation, { userId: "missing-user" })).rejects.toThrow("USER_NOT_FOUND")
-    await expect(server.mutation(api.operator.createGoal, { userId: "missing-user", title: "Orphan goal", description: "Fixture" })).rejects.toThrow("USER_NOT_FOUND")
-    await expect(server.mutation(api.billing.beginCheckout, { userId: "missing-user", planTier: "pro" })).rejects.toThrow("Account not available")
+    const missingMember = { ...identity, subject: "member:missing-user" }
+    await expect(t.withIdentity(missingMember).mutation(api.operator.createConversation, { userId: "missing-user" })).rejects.toThrow("USER_NOT_FOUND")
+    await expect(t.withIdentity(missingMember).mutation(api.operator.createGoal, { userId: "missing-user", title: "Orphan goal", description: "Fixture" })).rejects.toThrow("USER_NOT_FOUND")
+    await expect(t.withIdentity({ ...billingIdentity, subject: "member:missing-user" }).mutation(api.billing.beginCheckout, { userId: "missing-user", planTier: "pro" })).rejects.toThrow("Account not available")
 
     await t.run(async (ctx) => {
       await ctx.db.insert("operatorGoals", { legacyId: "goal-with-task", userId: "user-1", title: "Goal with task", description: "Fixture", status: "active", createdAt: stamp(), updatedAt: stamp() })

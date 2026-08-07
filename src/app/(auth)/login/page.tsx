@@ -6,7 +6,7 @@ import { GoogleAuthButton } from "@/components/auth/google-auth-button"
 import { getOAuthProviderAvailability } from "@/lib/oauth-config"
 import { safeCallbackPath } from "@/lib/safe-callback"
 
-export const metadata: Metadata = { title: "Log in", description: "Log in to your private GrowthAI workspace." }
+export const metadata: Metadata = { title: "Log in", description: "Log in to your access-controlled GrowthAI workspace." }
 
 export const dynamic = "force-dynamic"
 
@@ -23,12 +23,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <span className="h-px w-10 bg-[#72e7ff]" />
         <p className="font-semibold text-white">Your life is still in motion.</p>
       </div>
-      <p className="mt-4 max-w-sm text-xs leading-6 text-white/40">Return to the intentions you chose, the patterns you noticed, and the next step that still feels true.</p>
+      <p className="mt-4 max-w-sm text-sm leading-6 text-white/70">Return to the intentions you chose, the patterns you noticed, and the next step that still feels true.</p>
 
       <div className="mt-9"><GoogleAuthButton enabled={google} label="Continue with Google" callbackUrl={callbackUrl} /></div>
 
-      <div className="mt-5 flex items-center gap-2 text-[10px] tracking-wide text-white/30"><LockKeyhole className="size-3.5" />Secure passwordless authentication</div>
-      <p className="mt-10 text-xs text-white/45">New to GrowthAI? <Link href={`/signup${callbackQuery}`} className="font-semibold text-white underline decoration-[#72e7ff]/50 underline-offset-4 transition hover:text-[#72e7ff]">Create your space</Link></p>
+      <div className="mt-5 flex items-center gap-2 text-sm tracking-wide text-white/70"><LockKeyhole className="size-3.5" />Secure passwordless authentication</div>
+      <p className="mt-6 text-sm leading-6 text-white/70">By continuing, you agree to the <Link href="/terms" className="underline underline-offset-4 hover:text-white">Terms</Link> and acknowledge the <Link href="/privacy" className="underline underline-offset-4 hover:text-white">Privacy Notice</Link> and <Link href="/ai-safety" className="underline underline-offset-4 hover:text-white">AI limitations</Link>.</p>
+      <p className="mt-8 text-sm text-white/70">New to GrowthAI? <Link href={`/signup${callbackQuery}`} className="font-semibold text-white underline decoration-[#72e7ff]/50 underline-offset-4 transition hover:text-[#72e7ff]">Create your space</Link></p>
     </div>
   )
 }

@@ -26,6 +26,12 @@ export default defineSchema({
     locale: v.optional(v.string()),
     coachTone: v.optional(v.union(v.literal("supportive"), v.literal("balanced"), v.literal("blunt"))),
     emailNotifications: v.optional(v.boolean()),
+    messageRetentionDays: v.optional(v.number()),
+    aiMemoryClearedAt: v.optional(v.string()),
+    termsAcceptedVersion: v.optional(v.string()),
+    termsAcceptedAt: v.optional(v.string()),
+    privacyAcceptedVersion: v.optional(v.string()),
+    aiNoticeAcceptedVersion: v.optional(v.string()),
     accountStatus: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("deletion_pending"), v.literal("deleted"))),
     suspendedAt: v.optional(v.string()),
     suspensionReason: v.optional(v.string()),
@@ -211,14 +217,84 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_key", ["key"]),
 
+  adminSessions: defineTable({
+    tokenHash: v.string(),
+    email: v.string(),
+    roles: v.array(v.string()),
+    deviceHash: v.string(),
+    createdAt: v.string(),
+    lastSeenAt: v.string(),
+    idleExpiresAt: v.string(),
+    absoluteExpiresAt: v.string(),
+    revokedAt: v.optional(v.string()),
+  })
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_email_created", ["email", "createdAt"]),
+
   adminAuditLogs: defineTable({
     actor: v.string(),
+    actorRole: v.optional(v.string()),
     action: v.string(),
     targetType: v.string(),
     targetId: v.optional(v.string()),
+    reason: v.optional(v.string()),
+    ticket: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+    result: v.optional(v.string()),
     summary: v.string(),
     createdAt: v.string(),
-  }).index("by_created_at", ["createdAt"]),
+  })
+    .index("by_created_at", ["createdAt"])
+    .index("by_target_created", ["targetId", "createdAt"]),
+
+  privacyEvents: defineTable({
+    userId: v.string(),
+    type: v.string(),
+    details: v.optional(v.string()),
+    createdAt: v.string(),
+  }).index("by_user_created", ["userId", "createdAt"]),
+
+  dataSubjectRequests: defineTable({
+    legacyId: v.string(),
+    userId: v.string(),
+    type: v.union(v.literal("access"), v.literal("correction"), v.literal("deletion"), v.literal("restriction"), v.literal("objection")),
+    status: v.union(v.literal("submitted"), v.literal("identity_verified"), v.literal("in_progress"), v.literal("completed"), v.literal("rejected")),
+    details: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    completedAt: v.optional(v.string()),
+  })
+    .index("by_user_created", ["userId", "createdAt"])
+    .index("by_status_created", ["status", "createdAt"]),
+
+  accountDeletionJobs: defineTable({
+    legacyId: v.string(),
+    userId: v.string(),
+    status: v.union(v.literal("queued"), v.literal("processing"), v.literal("completed"), v.literal("failed")),
+    stage: v.string(),
+    attempts: v.number(),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    completedAt: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status_created", ["status", "createdAt"]),
+
+  legalRetentionRecords: defineTable({
+    subjectReference: v.string(),
+    category: v.union(v.literal("billing"), v.literal("security"), v.literal("audit")),
+    legalBasis: v.string(),
+    retainedData: v.string(),
+    retainUntil: v.string(),
+    createdAt: v.string(),
+  }).index("by_retain_until", ["retainUntil"]),
+
+  deletedIdentityTombstones: defineTable({
+    identityHash: v.string(),
+    reason: v.literal("user_requested_deletion"),
+    createdAt: v.string(),
+  }).index("by_identity_hash", ["identityHash"]),
 
   announcements: defineTable({
     legacyId: v.string(),

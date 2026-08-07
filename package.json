@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "convex:dev": "convex dev",
+    "convex:keys": "tsx scripts/generate-convex-identity-keys.ts",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
@@ -16,6 +17,7 @@
     "test:e2e": "playwright test",
     "verify": "npm run lint && npm run typecheck && npm run test",
     "security:scan": "./scripts/security-scan.sh --tracked",
+    "license:check": "license-checker-rseidelsohn --production --excludePackages 'growth_ai@0.1.0' --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;BlueOak-1.0.0;CC0-1.0;CC-BY-4.0;Python-2.0;OFL-1.1;LGPL-3.0-or-later'",
     "hooks:install": "git config core.hooksPath .githooks",
     "validate:env": "tsx scripts/validate-env.ts",
     "build:production": "npm run validate:env && next build --webpack"
@@ -33,10 +35,12 @@
     "convex": "^1.43.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
+    "jose": "^6.2.8",
     "lucide-react": "^1.28.0",
     "next": "^16.3.0",
     "next-auth": "^4.24.15",
     "next-themes": "^0.4.6",
+    "otpauth": "^9.5.1",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -49,6 +53,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -58,6 +63,7 @@
     "convex-test": "^0.0.55",
     "eslint": "^9",
     "eslint-config-next": "^16.3.0",
+    "license-checker-rseidelsohn": "^5.0.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.9",
     "typescript": "^5",

@@ -6,14 +6,11 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  Analytics01Icon,
   Brain02Icon,
-  Calendar03Icon,
   Settings01Icon,
   File01Icon,
   Target02Icon,
   Task01Icon,
-  VoiceIcon,
   SignOut,
 } from "@hugeicons/core-free-icons"
 
@@ -33,7 +30,7 @@ import {
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { Crown, SquarePen } from "lucide-react"
+import { SquarePen } from "lucide-react"
 import { ConversationHistoryItem } from "@/components/user/conversation-history-item"
 import { UpgradeDialogProvider, UpgradeTrigger } from "@/components/billing/upgrade-dialog"
 
@@ -53,12 +50,6 @@ const NAV_ITEMS = [
   { href: "/tasks", label: "Tasks", icon: Task01Icon },
   { href: "/weekly-report", label: "Weekly report", icon: File01Icon },
   { href: "/growth-map", label: "Growth map", icon: Brain02Icon },
-] as const
-
-const PRO_ITEMS = [
-  { label: "Calendar operator", icon: Calendar03Icon },
-  { label: "Deep insights", icon: Analytics01Icon },
-  { label: "Voice coach", icon: VoiceIcon },
 ] as const
 
 function getInitials(value: string): string {
@@ -159,26 +150,6 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
               ))}
             </SidebarGroup>
 
-            <SidebarGroup className="space-y-1 border-t border-neutral-200 px-0 py-3">
-              <div className="group-data-[collapsible=icon]:hidden">
-                <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-neutral-400">Pro tools</p>
-                {PRO_ITEMS.map((item) => (
-                  <UpgradeTrigger
-                    key={item.label}
-                    feature={item.label}
-                    className="flex h-9 items-center gap-2 rounded-lg px-2 text-sm text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-950"
-                  >
-                    <HugeiconsIcon icon={item.icon} strokeWidth={2} className="size-5 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">Pro</span>
-                  </UpgradeTrigger>
-                ))}
-              </div>
-              <UpgradeTrigger feature="GrowthAI Pro" title="GrowthAI Pro" className="mx-auto hidden size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/8 text-primary transition hover:bg-primary/15 group-data-[collapsible=icon]:flex">
-                <Crown className="size-4" />
-              </UpgradeTrigger>
-            </SidebarGroup>
-
             {conversations.length ? (
               <SidebarGroup className="space-y-1 border-t border-neutral-200 px-0 py-3 group-data-[collapsible=icon]:hidden">
                 <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400">Recent chats</p>
@@ -209,7 +180,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
             <Button
               type="button"
               variant="ghost"
-              className="h-9 w-full justify-start rounded-lg px-2 text-[16px] text-neutral-500 hover:bg-neutral-800 hover:text-red-650 group-data-[collapsible=icon]:justify-center"
+              className="min-h-11 w-full justify-start rounded-lg px-2 text-base text-neutral-500 hover:bg-neutral-800 hover:text-red-600 group-data-[collapsible=icon]:justify-center"
               disabled={isSigningOut}
               onClick={() => {
                 void handleSignOut()

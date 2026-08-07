@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState, useEffect, useMemo, useState, type ComponentType } from "react"
+import { useActionState, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import {
   Check,
   ChevronRight,
@@ -19,6 +19,7 @@ import {
 import { updateSettingsAction, type SettingsActionState } from "@/app/(user)/settings/actions"
 import { UpgradeTrigger } from "@/components/billing/upgrade-dialog"
 import { DangerZone } from "@/components/growth/danger-zone"
+import { PrivacyControls } from "@/components/settings/privacy-controls"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,6 +48,7 @@ const timezoneSuggestions = ["UTC", "Asia/Kolkata", "Asia/Singapore", "Europe/Lo
 export function SettingsWorkspace({ user, preferences }: { user: SettingsUser; preferences: AccountOverview["preferences"] }) {
   const [activeTab, setActiveTab] = useState<TabId>("general")
   const [query, setQuery] = useState("")
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const visibleTabs = useMemo(() => {
     const term = query.trim().toLowerCase()
     return term ? tabs.filter((tab) => `${tab.label} ${tab.description} ${tab.keywords}`.toLowerCase().includes(term)) : tabs
@@ -66,6 +68,13 @@ export function SettingsWorkspace({ user, preferences }: { user: SettingsUser; p
     setActiveTab(id)
     setQuery("")
     window.history.replaceState(null, "", `${window.location.pathname}#${id}`)
+  }
+
+  function moveTab(index: number) {
+    if (!visibleTabs.length) return
+    const next = (index + visibleTabs.length) % visibleTabs.length
+    selectTab(visibleTabs[next].id)
+    tabRefs.current[next]?.focus()
   }
 
   return (
@@ -90,10 +99,10 @@ export function SettingsWorkspace({ user, preferences }: { user: SettingsUser; p
           </label>
 
           <nav aria-label="Settings sections" className="mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:block lg:space-y-1" role="tablist">
-            {visibleTabs.map((tab) => {
+            {visibleTabs.map((tab, index) => {
               const Icon = tab.icon
               const selected = activeTab === tab.id
-              return <button key={tab.id} id={`settings-tab-${tab.id}`} type="button" role="tab" aria-selected={selected} aria-controls={`settings-panel-${tab.id}`} onClick={() => selectTab(tab.id)} className={cn("flex min-w-0 items-center gap-3 rounded-lg px-3 py-3 text-left transition lg:w-full", selected ? "bg-[#2b2b2b] text-[#fafaf8]" : "text-[#b5b5b0] hover:bg-[#202020] hover:text-[#f0f0ed]")}>
+              return <button key={tab.id} id={`settings-tab-${tab.id}`} type="button" role="tab" aria-selected={selected} aria-controls={`settings-panel-${tab.id}`} tabIndex={selected ? 0 : -1} ref={(element) => { tabRefs.current[index] = element }} onClick={() => selectTab(tab.id)} onKeyDown={(event) => { if (event.key === "ArrowRight" || event.key === "ArrowDown") { event.preventDefault(); moveTab(index + 1) } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") { event.preventDefault(); moveTab(index - 1) } else if (event.key === "Home") { event.preventDefault(); moveTab(0) } else if (event.key === "End") { event.preventDefault(); moveTab(visibleTabs.length - 1) } }} className={cn("flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-3 py-3 text-left transition lg:w-full", selected ? "bg-[#2b2b2b] text-[#fafaf8]" : "text-[#b5b5b0] hover:bg-[#202020] hover:text-[#f0f0ed]")}>
                 <Icon className={cn("size-[18px] shrink-0", selected ? "text-primary" : "text-[#7f7f7a]")} />
                 <span className="min-w-0"><span className="block truncate text-sm font-medium">{tab.label}</span><span className="mt-0.5 hidden truncate text-[11px] font-normal text-[#777773] lg:block">{tab.description}</span></span>
               </button>
@@ -111,7 +120,7 @@ export function SettingsWorkspace({ user, preferences }: { user: SettingsUser; p
           {activeTab === "general" ? <GeneralPanel user={user} preferences={preferences} /> : null}
           {activeTab === "coach" ? <CoachPanel preferences={preferences} /> : null}
           {activeTab === "billing" ? <BillingPanel planTier={user.planTier} /> : null}
-          {activeTab === "privacy" ? <PrivacyPanel email={user.email} /> : null}
+          {activeTab === "privacy" ? <PrivacyPanel email={user.email} retentionDays={preferences.messageRetentionDays} /> : null}
         </div>
     </div>
   )
@@ -202,13 +211,15 @@ function BillingPanel({ planTier }: { planTier: SettingsUser["planTier"] }) {
   </SettingsPanel>
 }
 
-function PrivacyPanel({ email }: { email: string }) {
+function PrivacyPanel({ email, retentionDays }: { email: string; retentionDays: number }) {
   return <SettingsPanel id="privacy" eyebrow="Your information" title="Privacy & data" description="Understand what is stored, download a copy, or permanently remove your account.">
+    <p className="text-sm leading-7 text-[#b0b0ab]">Read the <Link href="/privacy" className="underline underline-offset-4">Privacy Notice</Link>, <Link href="/terms" className="underline underline-offset-4">Terms</Link>, <Link href="/security" className="underline underline-offset-4">Security practices</Link>, and <Link href="/ai-safety" className="underline underline-offset-4">AI safety notice</Link>.</p>
     <Section title="Your data" description="Your stored context makes conversations and planning coherent across sessions.">
       <InfoRow icon={Sparkles} title="Growth context" text="Chats, approved goals, tasks, and preferences used to run your workspace." />
       <InfoRow icon={CreditCard} title="Billing records" text="Provider subscription identifiers and lifecycle status—never card or banking details." />
-      <div className="flex items-center justify-between gap-4 px-1 py-6"><div><p className="text-sm font-medium text-[#dededb]">Download your information</p><p className="mt-1 text-xs leading-5 text-[#858581]">Export the data associated with your account as JSON.</p></div><Button asChild variant="outline" className="h-10 rounded-lg px-4 text-sm font-medium"><a href="/api/account/export"><Download />Export</a></Button></div>
+      <div className="flex items-center justify-between gap-4 px-1 py-6"><div><p className="text-sm font-medium text-[#dededb]">Download your information</p><p className="mt-1 text-xs leading-5 text-[#a3a39e]">Export the data associated with your account as JSON. A sign-in from the last 15 minutes is required.</p></div><Button asChild variant="outline" className="min-h-11 rounded-lg px-4 text-sm font-medium"><a href="/api/account/export"><Download />Export</a></Button></div>
     </Section>
+    <Section title="Retention, AI memory, and privacy requests" description="These controls are independent from deleting your whole account."><PrivacyControls initialRetentionDays={retentionDays} /></Section>
     <div className="border-y border-red-500/25 bg-red-500/[.035] px-1 py-7 sm:px-0"><p className="text-xs font-medium uppercase tracking-[.14em] text-red-400">Danger zone</p><h2 className="mt-3 text-xl font-semibold text-[#f0f0ed]">Permanently delete account</h2><div className="mt-4"><DangerZone email={email} hideExport /></div></div>
   </SettingsPanel>
 }

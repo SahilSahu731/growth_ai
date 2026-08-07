@@ -3,7 +3,7 @@ import { Search, UserRoundCheck } from "lucide-react"
 
 import { AdminPagination } from "@/components/admin/admin-pagination"
 import { listAdminUsers } from "@/lib/data/admin"
-import { requireAdminPageSession } from "@/lib/admin/page-auth"
+import { requireAdminPageRole } from "@/lib/admin/page-auth"
 
 export const metadata = { title: "Users" }
 
@@ -17,7 +17,7 @@ function isSuspended(user: { accountStatus?: string; deletedAt?: string }) {
 }
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string; deleted?: string }> }) {
-  await requireAdminPageSession()
+  await requireAdminPageRole("support-read")
   const params = await searchParams
   const search = params.q?.trim().slice(0, 100) ?? ""
   const result = await listAdminUsers({ search, page: positiveInteger(params.page), pageSize: 20 })

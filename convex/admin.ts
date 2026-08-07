@@ -2,7 +2,7 @@
 import { mutationGeneric as mutation, queryGeneric as query } from "convex/server"
 import { v } from "convex/values"
 
-import { requireServer } from "./lib/serverAuth"
+import { requireScope } from "./lib/serverAuth"
 import { assertGoalCanBeActive, assertPlanSupportsActiveGoals } from "./lib/goalLimits"
 import { collectOwnedRows } from "./lib/ownedData"
 
@@ -30,13 +30,18 @@ async function userById(ctx: any, userId: string) {
 
 async function writeAudit(
   ctx: any,
-  input: { actor: string; action: string; targetType: string; targetId?: string; summary: string }
+  input: { actor: string; actorRole?: string; action: string; targetType: string; targetId?: string; reason?: string; ticket?: string; requestId?: string; result?: string; summary: string }
 ) {
   await ctx.db.insert("adminAuditLogs", {
     actor: input.actor.trim().toLowerCase().slice(0, 160),
+    ...(input.actorRole ? { actorRole: input.actorRole.slice(0, 60) } : {}),
     action: input.action.slice(0, 80),
     targetType: input.targetType.slice(0, 60),
     ...(input.targetId ? { targetId: input.targetId.slice(0, 160) } : {}),
+    ...(input.reason ? { reason: input.reason.replace(/\s+/g, " ").trim().slice(0, 500) } : {}),
+    ...(input.ticket ? { ticket: input.ticket.trim().slice(0, 100) } : {}),
+    ...(input.requestId ? { requestId: input.requestId.trim().slice(0, 100) } : {}),
+    ...(input.result ? { result: input.result.trim().slice(0, 60) } : {}),
     summary: input.summary.replace(/\s+/g, " ").trim().slice(0, 300),
     createdAt: new Date().toISOString(),
   })
@@ -45,7 +50,7 @@ async function writeAudit(
 export const consumeLoginAttempt = mutation({
   args: { key: v.string() },
   handler: async (ctx, { key }) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:login")
     const now = new Date()
     const nowIso = now.toISOString()
     const row = await ctx.db.query("adminLoginAttempts").withIndex("by_key", (q: any) => q.eq("key", key)).unique()
@@ -56,7 +61,8 @@ export const consumeLoginAttempt = mutation({
 
     const windowExpired = !row || Date.parse(row.windowStartedAt) < now.getTime() - 15 * 60 * 1000
     const attempts = windowExpired ? 1 : row.attempts + 1
-    const blockedUntil = attempts > 5 ? new Date(now.getTime() + 30 * 60 * 1000).toISOString() : undefined
+    const backoffMs = attempts > 5 ? Math.min(30 * 60 * 1000, 60_000 * (2 ** Math.min(attempts - 6, 5))) : 0
+    const blockedUntil = backoffMs ? new Date(now.getTime() + backoffMs).toISOString() : undefined
     const fields = {
       attempts,
       windowStartedAt: windowExpired ? nowIso : row.windowStartedAt,
@@ -74,10 +80,52 @@ export const consumeLoginAttempt = mutation({
 export const clearLoginAttempts = mutation({
   args: { key: v.string() },
   handler: async (ctx, { key }) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:login")
     const row = await ctx.db.query("adminLoginAttempts").withIndex("by_key", (q: any) => q.eq("key", key)).unique()
     if (row) await ctx.db.delete(row._id)
     return true
+  },
+})
+
+export const createSession = mutation({
+  args: { tokenHash: v.string(), email: v.string(), roles: v.array(v.string()), deviceHash: v.string(), absoluteExpiresAt: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "admin", "admin:session")
+    const timestamp = new Date().toISOString()
+    const idleExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+    await ctx.db.insert("adminSessions", { tokenHash: args.tokenHash, email: args.email.trim().toLowerCase(), roles: args.roles.slice(0, 8), deviceHash: args.deviceHash, createdAt: timestamp, lastSeenAt: timestamp, idleExpiresAt, absoluteExpiresAt: args.absoluteExpiresAt })
+    return true
+  },
+})
+
+export const validateSession = mutation({
+  args: { tokenHash: v.string(), email: v.string(), deviceHash: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "admin", "admin:session")
+    const row = await ctx.db.query("adminSessions").withIndex("by_token_hash", (q: any) => q.eq("tokenHash", args.tokenHash)).unique()
+    const timestamp = new Date().toISOString()
+    if (!row || row.revokedAt || row.email !== args.email.trim().toLowerCase() || row.deviceHash !== args.deviceHash || row.idleExpiresAt <= timestamp || row.absoluteExpiresAt <= timestamp) return null
+    await ctx.db.patch(row._id, { lastSeenAt: timestamp, idleExpiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() })
+    return { email: row.email, roles: row.roles, absoluteExpiresAt: row.absoluteExpiresAt }
+  },
+})
+
+export const revokeSession = mutation({
+  args: { tokenHash: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "admin", "admin:session")
+    const row = await ctx.db.query("adminSessions").withIndex("by_token_hash", (q: any) => q.eq("tokenHash", args.tokenHash)).unique()
+    if (row && !row.revokedAt) await ctx.db.patch(row._id, { revokedAt: new Date().toISOString() })
+    return true
+  },
+})
+
+export const listSessions = query({
+  args: { email: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "admin", "admin:session")
+    const rows = await ctx.db.query("adminSessions").withIndex("by_email_created", (q: any) => q.eq("email", args.email.trim().toLowerCase())).order("desc").take(20)
+    return rows.map((row: any) => ({ id: row.tokenHash.slice(0, 12), roles: row.roles, device: row.deviceHash.slice(0, 12), createdAt: row.createdAt, lastSeenAt: row.lastSeenAt, idleExpiresAt: row.idleExpiresAt, absoluteExpiresAt: row.absoluteExpiresAt, revokedAt: row.revokedAt ?? null }))
   },
 })
 
@@ -87,10 +135,11 @@ export const recordAudit = mutation({
     action: v.string(),
     targetType: v.string(),
     targetId: v.optional(v.string()),
+    reason: v.optional(v.string()), ticket: v.optional(v.string()), requestId: v.optional(v.string()), result: v.optional(v.string()), actorRole: v.optional(v.string()),
     summary: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:audit")
     await writeAudit(ctx, args)
     return true
   },
@@ -99,7 +148,7 @@ export const recordAudit = mutation({
 export const getDashboard = query({
   args: {},
   handler: async (ctx) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:read")
     const [users, conversations, messages, goals, tasks, subscriptions, billingEvents] = await Promise.all([
       ctx.db.query("users").collect(),
       ctx.db.query("operatorConversations").collect(),
@@ -142,7 +191,7 @@ export const getDashboard = query({
 export const listUsers = query({
   args: { search: v.string(), page: v.number(), pageSize: v.number() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:read")
     const search = args.search.trim().toLowerCase()
     const pageSize = Math.min(Math.max(Math.floor(args.pageSize), 1), 100)
     const page = Math.max(Math.floor(args.page), 1)
@@ -169,10 +218,11 @@ export const listUsers = query({
   },
 })
 
-export const getUserDetail = query({
-  args: { userId: v.string() },
-  handler: async (ctx, { userId }) => {
-    await requireServer(ctx)
+export const getUserDetail = mutation({
+  args: { userId: v.string(), actor: v.string(), reason: v.string(), ticket: v.string(), requestId: v.string() },
+  handler: async (ctx, { userId, actor, reason, ticket, requestId }) => {
+    await requireScope(ctx, "admin", "admin:sensitive-read")
+    if (reason.trim().length < 10 || ticket.trim().length < 3 || !/^[A-Za-z0-9_-]{8,100}$/.test(requestId)) throw new Error("SUPPORT_JUSTIFICATION_REQUIRED")
     const user = await userById(ctx, userId)
     if (!user) return null
     const [conversations, messages, goals, tasks, subscriptions] = await Promise.all([
@@ -182,7 +232,7 @@ export const getUserDetail = query({
       collectOwnedRows(ctx, "operatorTasks", userId),
       ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
     ])
-    return {
+    const result = {
       user: clean(user),
       conversations: conversations.sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map(clean),
       messages: messages.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt)).slice(0, 40).map(clean),
@@ -191,13 +241,15 @@ export const getUserDetail = query({
       subscriptions: subscriptions.sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map(clean),
       counts: { conversations: conversations.length, messages: messages.length, goals: goals.length, tasks: tasks.length },
     }
+    await writeAudit(ctx, { actor, actorRole: "support-read", action: "user.sensitive_data.read", targetType: "user", targetId: userId, reason, ticket, requestId, result: "success", summary: `Opened account, conversation, message, goal, task, and subscription details for ${user.email}.` })
+    return result
   },
 })
 
 export const updateUser = mutation({
   args: { actor: v.string(), userId: v.string(), name: v.string(), planTier },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:write")
     const user = await userById(ctx, args.userId)
     if (!user) throw new Error("User not found")
     const name = args.name.replace(/\s+/g, " ").trim().slice(0, 100)
@@ -218,7 +270,7 @@ export const updateUser = mutation({
 export const setUserAccess = mutation({
   args: { actor: v.string(), userId: v.string(), suspended: v.boolean(), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:write")
     const user = await userById(ctx, args.userId)
     if (!user) throw new Error("User not found")
     const timestamp = new Date().toISOString()
@@ -251,7 +303,7 @@ export const setGoalStatus = mutation({
     status: v.union(v.literal("active"), v.literal("completed"), v.literal("archived")),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:write")
     const goal = await ctx.db.query("operatorGoals").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.goalId)).unique()
     if (!goal || goal.userId !== args.userId) throw new Error("Goal not found")
     if (args.status === "active") await assertGoalCanBeActive(ctx, { userId: args.userId, goalId: args.goalId })
@@ -284,7 +336,7 @@ export const setTaskStatus = mutation({
     status: v.union(v.literal("todo"), v.literal("done"), v.literal("dismissed")),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:write")
     const task = await ctx.db.query("operatorTasks").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.taskId)).unique()
     if (!task || task.userId !== args.userId) throw new Error("Task not found")
     const timestamp = new Date().toISOString()
@@ -307,7 +359,7 @@ export const setTaskStatus = mutation({
 export const deleteConversation = mutation({
   args: { actor: v.string(), userId: v.string(), conversationId: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:delete")
     const conversation = await ctx.db.query("operatorConversations").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.conversationId)).unique()
     if (!conversation || conversation.userId !== args.userId) throw new Error("Conversation not found")
     const messages = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId)).collect()
@@ -327,7 +379,7 @@ export const deleteConversation = mutation({
 export const deleteUser = mutation({
   args: { actor: v.string(), userId: v.string(), confirmationEmail: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:delete")
     const user = await userById(ctx, args.userId)
     if (!user || user.email.toLowerCase() !== args.confirmationEmail.trim().toLowerCase()) {
       throw new Error("Confirmation email does not match")
@@ -354,7 +406,7 @@ export const deleteUser = mutation({
 export const getBilling = query({
   args: { page: v.number(), pageSize: v.number() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:billing")
     const page = Math.max(1, Math.floor(args.page))
     const pageSize = Math.min(100, Math.max(1, Math.floor(args.pageSize)))
     const [subscriptions, events, users] = await Promise.all([
@@ -375,10 +427,11 @@ export const getBilling = query({
   },
 })
 
-export const getActivity = query({
-  args: { page: v.number(), pageSize: v.number() },
+export const getActivity = mutation({
+  args: { page: v.number(), pageSize: v.number(), actor: v.string(), reason: v.string(), ticket: v.string(), requestId: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:sensitive-read")
+    if (args.reason.trim().length < 10 || args.ticket.trim().length < 3 || !/^[A-Za-z0-9_-]{8,100}$/.test(args.requestId)) throw new Error("SUPPORT_JUSTIFICATION_REQUIRED")
     const page = Math.max(1, Math.floor(args.page))
     const pageSize = Math.min(100, Math.max(1, Math.floor(args.pageSize)))
     const [messages, conversations, users] = await Promise.all([
@@ -390,7 +443,7 @@ export const getActivity = query({
     const conversationMap = new Map(conversations.map((item: any) => [item.legacyId, item.title]))
     const sorted = messages.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt))
     const start = (page - 1) * pageSize
-    return {
+    const result = {
       items: sorted.slice(start, start + pageSize).map((message: any) => ({
         ...clean(message),
         content: message.content.slice(0, 240),
@@ -401,13 +454,15 @@ export const getActivity = query({
       page,
       pages: Math.max(1, Math.ceil(sorted.length / pageSize)),
     }
+    await writeAudit(ctx, { actor: args.actor, actorRole: "support-read", action: "messages.bulk_read", targetType: "message_page", reason: args.reason, ticket: args.ticket, requestId: args.requestId, result: "success", summary: `Read ${result.items.length} message previews from activity page ${page}.` })
+    return result
   },
 })
 
 export const getAuditLogs = query({
   args: { page: v.number(), pageSize: v.number() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:audit-read")
     const page = Math.max(1, Math.floor(args.page))
     const pageSize = Math.min(100, Math.max(1, Math.floor(args.pageSize)))
     const logs = await ctx.db.query("adminAuditLogs").withIndex("by_created_at").order("desc").collect()
@@ -453,6 +508,16 @@ function announcementFields(args: {
   for (const [name, color] of [["Background", args.backgroundColor], ["Text", args.textColor], ["Accent", args.accentColor]] as const) {
     if (!colorPattern.test(color)) throw new Error(`${name} color must be a 6-digit hex value`)
   }
+  const luminance = (hex: string) => {
+    const channels = [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255).map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+  }
+  const contrast = (left: string, right: string) => {
+    const values = [luminance(left), luminance(right)].sort((a, b) => b - a)
+    return (values[0] + 0.05) / (values[1] + 0.05)
+  }
+  if (contrast(args.textColor, args.backgroundColor) < 4.5) throw new Error("Announcement text and background must have at least 4.5:1 contrast")
+  if (contrast(args.accentColor, args.backgroundColor) < 3) throw new Error("Announcement accent and background must have at least 3:1 contrast")
   const startsAt = args.startsAt || undefined
   const endsAt = args.endsAt || undefined
   if (startsAt && Number.isNaN(Date.parse(startsAt))) throw new Error("Start time is invalid")
@@ -482,7 +547,7 @@ function announcementFields(args: {
 export const listAnnouncements = query({
   args: {},
   handler: async (ctx) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:read")
     const rows = await ctx.db.query("announcements").collect()
     return rows.sort((left: any, right: any) => right.priority - left.priority || right.updatedAt.localeCompare(left.updatedAt)).map(clean)
   },
@@ -498,7 +563,7 @@ export const createAnnouncement = mutation({
     priority: v.number(), dismissible: v.boolean(), isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:write")
     const timestamp = new Date().toISOString()
     const legacyId = crypto.randomUUID()
     const fields = announcementFields(args)
@@ -521,7 +586,7 @@ export const updateAnnouncement = mutation({
     priority: v.number(), dismissible: v.boolean(), isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:write")
     const row = await ctx.db.query("announcements").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.announcementId)).unique()
     if (!row) throw new Error("Announcement not found")
     const fields = announcementFields(args)
@@ -537,7 +602,7 @@ export const updateAnnouncement = mutation({
 export const deleteAnnouncement = mutation({
   args: { actor: v.string(), announcementId: v.string() },
   handler: async (ctx, args) => {
-    await requireServer(ctx)
+    await requireScope(ctx, "admin", "admin:delete")
     const row = await ctx.db.query("announcements").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.announcementId)).unique()
     if (!row) throw new Error("Announcement not found")
     await ctx.db.delete(row._id)

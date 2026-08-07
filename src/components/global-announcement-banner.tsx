@@ -28,11 +28,11 @@ export function GlobalAnnouncementBanner() {
   }, [pathname])
 
   useEffect(() => {
-    if (announcement?.placement !== "popup") return
+    if (announcement?.placement !== "popup" || !announcement.dismissible) return
     const previous = document.body.style.overflow
     document.body.style.overflow = "hidden"
     return () => { document.body.style.overflow = previous }
-  }, [announcement?.placement])
+  }, [announcement?.placement, announcement?.dismissible])
 
   if (pathname.startsWith("/admin") || !announcement) return null
   const dismissalKey = `growthai-announcement:${announcement.id}:${announcement.updatedAt}`

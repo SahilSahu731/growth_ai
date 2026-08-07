@@ -2,9 +2,9 @@
 
 ## Boundaries
 
-NextAuth owns Google authentication and server sessions. Google accounts are linked by provider subject plus verified email; provider profile changes do not overwrite a user's saved name. Next.js server actions and route handlers are the application boundary. They currently call public Convex functions using a server-only deployment credential and a fixed server identity. Every callable function rejects requests without that identity, and resource mutations also verify user ownership. Replacing the runtime deployment credential with a least-privilege application identity remains a G2 release gate.
+NextAuth owns Google authentication and member sessions. Google accounts are linked by provider subject plus verified email; provider profile changes do not overwrite a user's saved name. Next.js server actions and route handlers are the application boundary. Convex calls use two-minute RS256 application tokens with separate member, auth, admin, webhook, and background issuers. Every protected function checks role and exact scope; member functions also bind the JWT subject to the requested user ID. Anonymous callers can read only the current public announcement. `CONVEX_DEPLOY_KEY` is rejected by production runtime validation and belongs only in an isolated deployment job.
 
-Administration is a separate identity boundary and never uses a `users.role` field or a member session. Environment-backed email and password authentication creates a short-lived signed cookie scoped to `/admin`. Protected pages and mutations each re-check that session. Convex-backed throttling limits login attempts, and privileged changes are recorded in `adminAuditLogs`. Member suspension is re-evaluated whenever NextAuth resolves a session, so access removal takes effect without waiting for JWT expiry.
+Administration is separate from member identity. Named environment-managed administrators require bcrypt passwords, TOTP MFA, explicit roles, a distinct session secret, and server-side revocable sessions with idle and absolute expiry. Network, account, device, and global login keys use exponential backoff without trusting forwarded IP headers outside configured proxy hops. Sensitive support reads require a ticket and reason and append an audit event. Physical service separation, external audit export, and a managed administrator identity provider remain production-infrastructure steps.
 
 Convex stores the core product and operational tables:
 
@@ -34,8 +34,8 @@ Every task has a required `goalId`. Free accounts are limited to three active go
 - Goal limits, task duration limits, per-day task limits, ownership, and valid goal state are enforced in Convex.
 - AI receives only relevant conversation, goals, and open tasks rather than unrelated account data. User content is isolated from the system instruction and treated as untrusted.
 - Crisis/high-risk routing executes before any provider call. Model use has per-user/network limits, daily budgets, a timeout, an automatic global circuit breaker, and an emergency kill switch. Cost estimates use environment-configured current provider rates rather than hard-coded pricing.
-- Account export contains the account, chats, goals, tasks, and subscriptions.
-- Verified deletion removes all user-owned product data before deleting the user.
+- Account export is versioned and includes account data, chats, goals, tasks, subscriptions, privacy/preference history, support access history, requests, policy, and export timestamp.
+- Account deletion is queued and observable. It removes active user data, writes irreversible identity tombstones to prevent automatic recreation, retains only minimal legally required billing records, and lets backups expire without restoring deleted accounts.
 - Seed and migration functions are internal and idempotent.
 - Paid entitlement changes only when a signed Razorpay event matches a subscription created by the server, its owner, and its exact configured provider plan ID. Browser-supplied amounts, plan IDs, subscription IDs, and entitlement state are never trusted.
 - Subscription cancellation checks the signed-in owner, changes Razorpay first, and leaves local entitlement unchanged until the provider webhook confirms the lifecycle change.
