@@ -1,0 +1,17 @@
+# Default owner and security-sensitive areas.
+* @SahilSahu731
+
+/.github/ @SahilSahu731
+/convex/ @SahilSahu731
+/src/auth.ts @SahilSahu731
+/src/lib/admin/ @SahilSahu731
+/src/lib/billing/ @SahilSahu731
+/src/app/api/account/ @SahilSahu731
+/src/app/api/auth/ @SahilSahu731
+/src/app/api/billing/ @SahilSahu731
+/src/app/api/webhooks/ @SahilSahu731
+/docs/ @SahilSahu731
+/.env.example @SahilSahu731
+/next.config.ts @SahilSahu731
+/package.json @SahilSahu731
+/package-lock.json @SahilSahu731

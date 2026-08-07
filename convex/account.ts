@@ -2,6 +2,7 @@
 import { mutationGeneric as mutation, queryGeneric as query } from "convex/server"
 import { v } from "convex/values"
 import { requireServer } from "./lib/serverAuth"
+import { collectOwnedRows } from "./lib/ownedData"
 
 function clean(document: any) {
   if (!document) return null
@@ -79,10 +80,10 @@ export const exportUserData = query({
     const user = await userById(ctx, userId)
     if (!user) return null
     const [conversations, messages, goals, tasks, subscriptions] = await Promise.all([
-      ctx.db.query("operatorConversations").filter((q: any) => q.eq(q.field("userId"), userId)).collect(),
-      ctx.db.query("operatorMessages").filter((q: any) => q.eq(q.field("userId"), userId)).collect(),
-      ctx.db.query("operatorGoals").filter((q: any) => q.eq(q.field("userId"), userId)).collect(),
-      ctx.db.query("operatorTasks").filter((q: any) => q.eq(q.field("userId"), userId)).collect(),
+      collectOwnedRows(ctx, "operatorConversations", userId),
+      collectOwnedRows(ctx, "operatorMessages", userId),
+      collectOwnedRows(ctx, "operatorGoals", userId),
+      collectOwnedRows(ctx, "operatorTasks", userId),
       ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
     ])
     return {
@@ -103,8 +104,8 @@ export const deleteUserAccount = mutation({
     await requireServer(ctx)
     const user = await userById(ctx, args.userId)
     if (!user || user.email.toLowerCase() !== args.confirmationEmail.trim().toLowerCase()) return false
-    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions", "billingCheckoutLocks"] as const) {
-      const rows = await ctx.db.query(table).filter((q: any) => q.eq(q.field("userId"), args.userId)).collect()
+    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions", "billingCheckoutLocks", "aiDailyUsage"] as const) {
+      const rows = await collectOwnedRows(ctx, table, args.userId)
       for (const row of rows) await ctx.db.delete(row._id)
     }
     await ctx.db.delete(user._id)

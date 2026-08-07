@@ -3,18 +3,14 @@ import { describe, expect, it } from "vitest"
 import { matchesAdminPassword, resolveAdminCredentialConfig } from "./credential-config"
 
 describe("admin credential configuration", () => {
-  it("accepts the direct password and short session secret compatibility configuration", async () => {
+  it("rejects direct passwords and short session secrets", () => {
     const config = resolveAdminCredentialConfig({
       ADMIN_EMAIL: "admin@x.com",
       ADMIN_PASSWORD_HASH: "kingofthepirates",
       ADMIN_SESSION_SECRET: "onepiece",
       ADMIN_SESSION_VERSION: "1",
     })
-    expect(config).not.toBeNull()
-    expect(config?.email).toBe("admin@x.com")
-    expect(config?.sessionSecret).toHaveLength(64)
-    expect(config && await matchesAdminPassword("kingofthepirates", config)).toBe(true)
-    expect(config && await matchesAdminPassword("wrong-password", config)).toBe(false)
+    expect(config).toBeNull()
   })
 
   it("supports bcrypt password hashes for production", async () => {

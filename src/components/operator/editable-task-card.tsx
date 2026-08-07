@@ -1,6 +1,7 @@
 "use client"
 
-import { useActionState, useCallback, useState } from "react"
+import { useActionState, useCallback, useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Check, Clock3, Pencil, X } from "lucide-react"
 
 import {
@@ -14,9 +15,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { formatDateOnly } from "@/lib/date-time"
 import type { OperatorGoal, OperatorTask } from "@/lib/operator/types"
 
-export function EditableTaskCard({ task, goals, compact = false }: { task: OperatorTask; goals: OperatorGoal[]; compact?: boolean }) {
+export function EditableTaskCard({ task, goals, compact = false, locale = "en" }: { task: OperatorTask; goals: OperatorGoal[]; compact?: boolean; locale?: string }) {
   const [open, setOpen] = useState(false)
   const activeGoals = goals.filter((goal) => goal.status === "active")
   const goal = goals.find((item) => item.id === task.goalId)
@@ -36,20 +38,16 @@ export function EditableTaskCard({ task, goals, compact = false }: { task: Opera
           : "rounded-2xl border-neutral-200 bg-white p-4 shadow-sm sm:p-5"
       )}>
         <div className="flex items-start gap-3">
-          <form action={setOperatorTaskStatusAction}>
-            <input type="hidden" name="taskId" value={task.id} />
-            <button
-              name="status"
-              value="done"
-              aria-label={`Complete ${task.title}`}
-              className={cn(
+          <TaskStatusButton
+            task={task}
+            status="done"
+            label={`Complete ${task.title}`}
+            buttonClassName={cn(
                 "mt-0.5 flex size-5 items-center justify-center rounded-full border text-transparent transition hover:border-primary hover:bg-primary hover:text-primary-foreground",
                 compact ? "border-white/20" : "border-neutral-300"
-              )}
-            >
-              <Check className="size-3" />
-            </button>
-          </form>
+            )}
+            icon={<Check className="size-3" />}
+          />
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -59,7 +57,7 @@ export function EditableTaskCard({ task, goals, compact = false }: { task: Opera
             {!compact && task.note ? <p className="mt-1.5 text-xs leading-5 text-neutral-500">{task.note}</p> : null}
             <div className={cn("mt-2 flex flex-wrap items-center gap-2 text-[10px]", compact ? "text-white/30" : "text-neutral-400")}>
               <span className="inline-flex items-center gap-1"><Clock3 className="size-3" />{task.estimatedMinutes} min</span>
-              <span>{formatDate(task.scheduledFor)}</span>
+              <span>{formatDateOnly(task.scheduledFor, locale, { month: "short", day: "numeric" })}</span>
             </div>
           </div>
 
@@ -71,10 +69,14 @@ export function EditableTaskCard({ task, goals, compact = false }: { task: Opera
           >
             <Pencil className="size-3.5" />
           </button>
-          <form action={setOperatorTaskStatusAction} className={cn(compact && "opacity-0 transition group-hover:opacity-100 focus-within:opacity-100")}>
-            <input type="hidden" name="taskId" value={task.id} />
-            <button name="status" value="dismissed" aria-label={`Dismiss ${task.title}`} className={cn("rounded-md p-1 transition", compact ? "text-white/20 hover:text-white" : "text-neutral-400 hover:text-neutral-900")}><X className="size-3.5" /></button>
-          </form>
+          <TaskStatusButton
+            task={task}
+            status="dismissed"
+            label={`Dismiss ${task.title}`}
+            className={cn(compact && "opacity-0 transition group-hover:opacity-100 focus-within:opacity-100")}
+            buttonClassName={cn("rounded-md p-1 transition", compact ? "text-white/20 hover:text-white" : "text-neutral-400 hover:text-neutral-900")}
+            icon={<X className="size-3.5" />}
+          />
         </div>
         <p className={cn("mt-3 border-t pt-2.5 text-[10px] leading-4", compact ? "border-white/[.06] text-white/30" : "border-neutral-100 text-neutral-400")}>Done when: {task.completionCondition}</p>
       </article>
@@ -112,10 +114,53 @@ export function EditableTaskCard({ task, goals, compact = false }: { task: Opera
   )
 }
 
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label htmlFor={htmlFor} className="text-xs font-semibold text-white/60">{label}</Label>{children}</div>
+function TaskStatusButton({ task, status, label, className, buttonClassName, icon }: {
+  task: OperatorTask
+  status: "done" | "dismissed"
+  label: string
+  className?: string
+  buttonClassName?: string
+  icon: React.ReactNode
+}) {
+  const router = useRouter()
+  const [updated, setUpdated] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+  }, [])
+
+  async function change(nextStatus: "todo" | "done" | "dismissed") {
+    setPending(true)
+    setError(null)
+    const formData = new FormData()
+    formData.set("taskId", task.id)
+    formData.set("status", nextStatus)
+    const result = await setOperatorTaskStatusAction(formData)
+    setPending(false)
+    if (!result.success) {
+      setError(result.error ?? "Could not update task.")
+      return
+    }
+    if (nextStatus === "todo") {
+      setUpdated(false)
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      router.refresh()
+      return
+    }
+    setUpdated(true)
+    refreshTimer.current = setTimeout(() => router.refresh(), 6_000)
+  }
+
+  if (updated) {
+    return <div className={cn("flex items-center gap-2", className)}><span className="text-[10px] text-emerald-400">{status === "done" ? "Completed" : "Dismissed"}</span><button type="button" disabled={pending} onClick={() => void change("todo")} className="text-[10px] font-semibold text-primary underline underline-offset-2">Undo</button></div>
+  }
+
+  return <div className={className}><button type="button" aria-label={label} disabled={pending} onClick={() => void change(status)} className={buttonClassName}>{icon}</button>{error ? <span role="alert" className="sr-only">{error}</span> : null}</div>
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`))
+function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+  return <div className="space-y-2"><Label htmlFor={htmlFor} className="text-xs font-semibold text-white/60">{label}</Label>{children}</div>
 }

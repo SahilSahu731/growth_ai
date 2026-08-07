@@ -79,6 +79,8 @@ export type BillingSubscription = {
 
 export type UserBillingOverview = {
   planTier: UserPlanTier
+  timezone: string
+  locale: string
   current: BillingSubscription | null
   subscriptions: BillingSubscription[]
 }

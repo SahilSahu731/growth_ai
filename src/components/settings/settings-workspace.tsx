@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useActionState, useEffect, useMemo, useState, type ComponentType } from "react"
 import {
-  Bell,
   Check,
   ChevronRight,
   CreditCard,
@@ -23,12 +22,11 @@ import { DangerZone } from "@/components/growth/danger-zone"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import type { AccountOverview } from "@/lib/data/account"
 import { getPlan, type PlanId } from "@/lib/plans"
 import { cn } from "@/lib/utils"
 
-type TabId = "general" | "coach" | "notifications" | "billing" | "privacy"
+type TabId = "general" | "coach" | "billing" | "privacy"
 
 type SettingsUser = {
   name: string
@@ -40,7 +38,6 @@ type SettingsUser = {
 const tabs: Array<{ id: TabId; label: string; description: string; keywords: string; icon: ComponentType<{ className?: string }> }> = [
   { id: "general", label: "General", description: "Profile and region", keywords: "profile name email avatar timezone language region", icon: Settings2 },
   { id: "coach", label: "AI coach", description: "Conversation style", keywords: "ai coach tone supportive balanced direct guidance", icon: Sparkles },
-  { id: "notifications", label: "Notifications", description: "Email preferences", keywords: "notifications email weekly report summary", icon: Bell },
   { id: "billing", label: "Plan & billing", description: "Subscription and usage", keywords: "plan billing subscription payment razorpay pro founder goals", icon: CreditCard },
   { id: "privacy", label: "Privacy & data", description: "Export or delete", keywords: "privacy data export download delete account security", icon: ShieldCheck },
 ]
@@ -113,7 +110,6 @@ export function SettingsWorkspace({ user, preferences }: { user: SettingsUser; p
         <div className="min-w-0 bg-[#101010]">
           {activeTab === "general" ? <GeneralPanel user={user} preferences={preferences} /> : null}
           {activeTab === "coach" ? <CoachPanel preferences={preferences} /> : null}
-          {activeTab === "notifications" ? <NotificationsPanel email={user.email} preferences={preferences} /> : null}
           {activeTab === "billing" ? <BillingPanel planTier={user.planTier} /> : null}
           {activeTab === "privacy" ? <PrivacyPanel email={user.email} /> : null}
         </div>
@@ -123,7 +119,16 @@ export function SettingsWorkspace({ user, preferences }: { user: SettingsUser; p
 
 function GeneralPanel({ user, preferences }: { user: SettingsUser; preferences: AccountOverview["preferences"] }) {
   const [state, action, pending] = useActionState(updateSettingsAction, {} as SettingsActionState)
+  const [timezone, setTimezone] = useState(preferences.timezone)
+  const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null)
   const initials = user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "G"
+  useEffect(() => {
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const timer = window.setTimeout(() => {
+      if (detected && detected !== preferences.timezone) setDetectedTimezone(detected)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [preferences.timezone])
   return <SettingsPanel id="general" eyebrow="Account" title="General" description="Your profile identity and regional preferences.">
     <Section title="Profile" description="Your name, photo, and email come from your connected Google account.">
       <SettingRow label="Avatar"><Avatar className="size-12"><AvatarImage src={user.image ?? undefined} alt={user.name} /><AvatarFallback className="bg-[#2a2a2a] text-sm font-medium text-white">{initials}</AvatarFallback></Avatar></SettingRow>
@@ -135,7 +140,7 @@ function GeneralPanel({ user, preferences }: { user: SettingsUser; preferences: 
     <Section title="Region" description="GrowthAI uses your timezone to place tasks and weekly activity on the right day.">
       <form action={action} className="divide-y divide-neutral-100">
         <input type="hidden" name="section" value="general" />
-        <SettingRow label="Timezone" align="start"><div className="w-full max-w-md"><Input name="timezone" list="timezone-suggestions" defaultValue={preferences.timezone} required className="h-11 rounded-lg border-[#343434] bg-[#171717] px-3 text-sm font-normal text-[#e8e8e5]" /><datalist id="timezone-suggestions">{timezoneSuggestions.map((timezone) => <option value={timezone} key={timezone} />)}</datalist><p className="mt-2 text-xs leading-5 text-[#777773]">Use an IANA timezone such as Asia/Kolkata.</p></div></SettingRow>
+        <SettingRow label="Timezone" align="start"><div className="w-full max-w-md"><Input name="timezone" list="timezone-suggestions" value={timezone} onChange={(event) => setTimezone(event.target.value)} required className="h-11 rounded-lg border-[#343434] bg-[#171717] px-3 text-sm font-normal text-[#e8e8e5]" /><datalist id="timezone-suggestions">{timezoneSuggestions.map((suggestion) => <option value={suggestion} key={suggestion} />)}</datalist><p className="mt-2 text-xs leading-5 text-[#777773]">Use an IANA timezone such as Asia/Kolkata.</p>{detectedTimezone ? <button type="button" onClick={() => setTimezone(detectedTimezone)} className="mt-2 text-xs font-medium text-primary underline underline-offset-4">Use detected timezone: {detectedTimezone}</button> : null}</div></SettingRow>
         <FormFooter state={state} pending={pending} />
       </form>
     </Section>
@@ -177,23 +182,6 @@ function CoachPanel({ preferences }: { preferences: AccountOverview["preferences
       <InfoRow icon={LockKeyhole} title="Clear boundaries" text="GrowthAI does not diagnose, impersonate therapy, or give high-stakes directives." />
       <InfoRow icon={Sparkles} title="Actionable by design" text="Plans stay small, editable, and connected to goals you approve." />
     </Section>
-  </SettingsPanel>
-}
-
-function NotificationsPanel({ email, preferences }: { email: string; preferences: AccountOverview["preferences"] }) {
-  const [enabled, setEnabled] = useState(preferences.emailNotifications)
-  const [state, action, pending] = useActionState(updateSettingsAction, {} as SettingsActionState)
-  return <SettingsPanel id="notifications" eyebrow="Attention" title="Notifications" description="Choose when GrowthAI may reach you outside the app.">
-    <Section title="Email" description={`Messages are sent only to ${email}.`}>
-      <form action={action} className="divide-y divide-neutral-100">
-        <input type="hidden" name="section" value="notifications" />
-        {enabled ? <input type="hidden" name="emailNotifications" value="on" /> : null}
-        <SettingRow label="Weekly growth summary" align="start"><div className="flex w-full max-w-md items-start justify-between gap-5"><div><p className="text-sm font-medium text-[#dededb]">Reflection and progress recap</p><p className="mt-1 text-xs font-normal leading-5 text-[#858581]">A concise summary when there is enough activity to make it useful.</p></div><Switch checked={enabled} onCheckedChange={setEnabled} aria-label="Weekly growth summary emails" className="mt-1" /></div></SettingRow>
-        <SettingRow label="Service messages"><div className="flex items-center gap-2 text-sm font-normal text-[#aaa9a5]"><LockKeyhole className="size-4" />Required account and security notices</div></SettingRow>
-        <FormFooter state={state} pending={pending} />
-      </form>
-    </Section>
-    <div className="border-l-2 border-primary/50 bg-primary/[.035] px-5 py-4 text-sm font-normal leading-7 text-[#aaa9a5]"><span className="font-medium text-[#ecece9]">Quiet by default.</span> GrowthAI does not send streak pressure, guilt-based reminders, or promotional notifications through this preference.</div>
   </SettingsPanel>
 }
 

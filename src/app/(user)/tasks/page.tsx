@@ -5,6 +5,7 @@ import { Check, MessageSquareText } from "lucide-react"
 
 import { authOptions } from "@/auth"
 import { EditableTaskCard } from "@/components/operator/editable-task-card"
+import { dateKeyInTimeZone, formatDateOnly } from "@/lib/date-time"
 import { ensureOperatorConversation, getOperatorWorkspace } from "@/lib/data/operator"
 import type { OperatorTask } from "@/lib/operator/types"
 
@@ -17,6 +18,7 @@ export default async function TasksPage() {
   const conversation = await ensureOperatorConversation(session.user.id)
   const workspace = await getOperatorWorkspace(session.user.id, conversation.id)
   if (!workspace) redirect("/chat")
+  const today = dateKeyInTimeZone(new Date(), workspace.timezone)
 
   const groups = workspace.tasks.reduce((result, task) => {
     const items = result.get(task.scheduledFor) ?? []
@@ -40,9 +42,9 @@ export default async function TasksPage() {
         <div className="space-y-7">
           {Array.from(groups.entries()).map(([date, tasks]) => (
             <section key={date}>
-              <div className="mb-3 flex items-center gap-3"><h2 className="text-sm font-bold text-neutral-800">{formatDate(date)}</h2><span className="text-[10px] text-neutral-400">{tasks.length} of 3 tasks</span></div>
+              <div className="mb-3 flex items-center gap-3"><h2 className="text-sm font-bold text-neutral-800">{formatDate(date, workspace.locale, today)}</h2><span className="text-[10px] text-neutral-400">{tasks.length} of 3 tasks</span></div>
               <div className="grid gap-3">
-                {tasks.map((task) => <EditableTaskCard key={task.id} task={task} goals={workspace.goals} />)}
+                {tasks.map((task) => <EditableTaskCard key={task.id} task={task} goals={workspace.goals} locale={workspace.locale} />)}
               </div>
             </section>
           ))}
@@ -59,8 +61,7 @@ export default async function TasksPage() {
   )
 }
 
-function formatDate(value: string) {
-  const today = new Date().toISOString().slice(0, 10)
+function formatDate(value: string, locale: string, today: string) {
   if (value === today) return "Today"
-  return new Intl.DateTimeFormat("en", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`))
+  return formatDateOnly(value, locale, { weekday: "long", month: "short", day: "numeric" })
 }

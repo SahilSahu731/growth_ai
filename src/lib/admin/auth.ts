@@ -72,7 +72,7 @@ export async function adminLoginFingerprint(): Promise<string> {
   const forwardedFor = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim()
   const address = forwardedFor || requestHeaders.get("x-real-ip") || "unknown"
   const userAgent = requestHeaders.get("user-agent")?.slice(0, 200) || "unknown"
-  const salt = config()?.sessionSecret ?? process.env.AUTH_SECRET ?? "growthai-unconfigured-admin"
+  const salt = config()?.sessionSecret ?? "growthai-unconfigured-admin"
   return createHash("sha256").update(`email-password-v2|${salt}|${address}|${userAgent}`).digest("hex")
 }
 
@@ -80,7 +80,7 @@ export function adminCredentialHealth() {
   const current = config()
   return {
     configured: Boolean(current),
-    passwordHashed: Boolean(!process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD_HASH?.startsWith("$2")),
+    passwordHashed: Boolean(process.env.ADMIN_PASSWORD_HASH?.startsWith("$2")),
     sessionSecretStrong: (process.env.ADMIN_SESSION_SECRET?.length ?? 0) >= 32,
     sessionHours: ADMIN_SESSION_TTL_SECONDS / 3600,
   }

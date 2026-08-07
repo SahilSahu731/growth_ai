@@ -32,6 +32,8 @@ export const getUserBilling = query({
     const sorted = subscriptions.sort((left: any, right: any) => right.updatedAt.localeCompare(left.updatedAt))
     return {
       planTier: user.planTier,
+      timezone: user.timezone ?? "UTC",
+      locale: user.locale ?? "en",
       subscriptions: sorted.map(clean),
       current: clean(sorted.find((item: any) => blockingStatuses.has(item.status)) ?? sorted[0] ?? null),
     }

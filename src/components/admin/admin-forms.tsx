@@ -35,8 +35,8 @@ export function AdminUserEditor({ user }: { user: AdminUser }) {
 
 export function AdminAccessControl({ user }: { user: AdminUser }) {
   const [state, action] = useActionState(setUserAccessAction, initial)
-  const suspended = Boolean(user.deletedAt)
-  return <form action={action} className="space-y-3"><input type="hidden" name="userId" value={user.id} /><input type="hidden" name="suspended" value={suspended ? "false" : "true"} /><p className="text-xs leading-5 text-neutral-500">{suspended ? "Restoring lets this account authenticate and use product routes again." : "Suspension invalidates product access on the next session check without deleting data."}</p><Feedback state={state} /><SubmitButton destructive={!suspended} icon={suspended ? ShieldCheck : ShieldBan}>{suspended ? "Restore account access" : "Suspend account access"}</SubmitButton></form>
+  const suspended = user.accountStatus === "suspended" || Boolean(user.deletedAt)
+  return <form action={action} className="space-y-3"><input type="hidden" name="userId" value={user.id} /><input type="hidden" name="suspended" value={suspended ? "false" : "true"} /><p className="text-xs leading-5 text-neutral-500">{suspended ? "Restoring lets this account authenticate and use product routes again." : "Suspension invalidates product access on the next session check without deleting data."}</p>{!suspended ? <label className="block space-y-2"><span className="text-xs font-semibold text-neutral-400">Suspension reason</span><textarea className={`${inputClass} min-h-24 py-3`} name="reason" minLength={3} maxLength={300} required /></label> : user.suspensionReason ? <p className="rounded-xl border border-white/8 bg-white/[.025] p-3 text-xs text-neutral-400">Reason: {user.suspensionReason}</p> : null}<Feedback state={state} /><SubmitButton destructive={!suspended} icon={suspended ? ShieldCheck : ShieldBan}>{suspended ? "Restore account access" : "Suspend account access"}</SubmitButton></form>
 }
 
 export function AdminGoalStatusForm({ userId, goalId, status }: { userId: string; goalId: string; status: string }) {

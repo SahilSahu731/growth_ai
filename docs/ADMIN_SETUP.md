@@ -19,7 +19,7 @@ Generate a password hash:
 node -e "console.log(require('bcryptjs').hashSync('replace-me', 12))"
 ```
 
-Replace `replace-me` locally before running the command. For local compatibility, `ADMIN_PASSWORD_HASH` may contain the direct password or you may use `ADMIN_PASSWORD`, but a bcrypt value is strongly recommended in deployed environments. Do not commit the plaintext value or paste it into tickets or logs. Generate the session signing key with a cryptographically secure generator such as:
+Replace `replace-me` locally before running the command. `ADMIN_PASSWORD_HASH` must contain a bcrypt value; plaintext admin passwords are rejected in every environment. Do not commit the plaintext value or paste it into tickets or logs. Generate a dedicated session signing key with a cryptographically secure generator such as:
 
 ```bash
 openssl rand -base64 48
@@ -35,7 +35,8 @@ npm run build
 ## Security behavior
 
 - Login requires only the configured admin email and password.
-- Bcrypt password hashes are recommended; direct server-only password values remain supported for local compatibility.
+- Only bcrypt password hashes are accepted.
+- The admin session secret must be dedicated and at least 32 characters; member authentication secrets are never used as a fallback.
 - Failed attempts are persistently limited: more than five attempts per client fingerprint within 15 minutes blocks attempts for 30 minutes.
 - The admin session is an HMAC-SHA256 signed, eight-hour `HttpOnly` cookie restricted to `/admin`; production also sets `Secure`, and `SameSite=Strict` is always used.
 - Every management mutation, login, and logout is written to `adminAuditLogs`.

@@ -3,8 +3,11 @@ import { mutationGeneric as mutation, queryGeneric as query } from "convex/serve
 import { v } from "convex/values"
 
 import { requireServer } from "./lib/serverAuth"
+import { assertGoalCanBeActive, assertPlanSupportsActiveGoals } from "./lib/goalLimits"
+import { collectOwnedRows } from "./lib/ownedData"
 
 const planTier = v.union(v.literal("free"), v.literal("pro"), v.literal("founder"), v.literal("team"))
+
 const announcementTone = v.union(v.literal("info"), v.literal("offer"), v.literal("warning"), v.literal("critical"))
 const announcementPlacement = v.union(v.literal("top_bar"), v.literal("floating_banner"), v.literal("popup"))
 const announcementAlignment = v.union(v.literal("left"), v.literal("center"))
@@ -111,8 +114,8 @@ export const getDashboard = query({
     return {
       totals: {
         users: users.length,
-        activeUsers: users.filter((item: any) => !item.deletedAt).length,
-        suspendedUsers: users.filter((item: any) => Boolean(item.deletedAt)).length,
+        activeUsers: users.filter((item: any) => !item.deletedAt && (!item.accountStatus || item.accountStatus === "active")).length,
+        suspendedUsers: users.filter((item: any) => Boolean(item.deletedAt) || item.accountStatus === "suspended").length,
         conversations: conversations.length,
         messages: messages.length,
         activeGoals: goals.filter((item: any) => item.status === "active").length,
@@ -124,11 +127,11 @@ export const getDashboard = query({
       lastSevenDays: {
         users: users.filter((item: any) => Date.parse(item.createdAt) >= sevenDaysAgo).length,
         messages: messages.filter((item: any) => Date.parse(item.createdAt) >= sevenDaysAgo).length,
-        completedTasks: tasks.filter((item: any) => item.completedAt && Date.parse(item.completedAt) >= sevenDaysAgo).length,
+        completedTasks: tasks.filter((item: any) => item.status === "done" && item.completedAt && Date.parse(item.completedAt) >= sevenDaysAgo).length,
       },
       planDistribution: ["free", "pro", "founder", "team"].map((tier) => ({
         tier,
-        count: users.filter((item: any) => item.planTier === tier && !item.deletedAt).length,
+        count: users.filter((item: any) => item.planTier === tier && !item.deletedAt && (!item.accountStatus || item.accountStatus === "active")).length,
       })),
       recentUsers: users.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6).map(clean),
       recentBillingEvents: billingEvents.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6).map(clean),
@@ -151,8 +154,8 @@ export const listUsers = query({
     const items = filtered.slice(start, start + pageSize)
     const enriched = await Promise.all(items.map(async (user: any) => {
       const [goals, tasks, subscriptions] = await Promise.all([
-        ctx.db.query("operatorGoals").filter((q: any) => q.eq(q.field("userId"), user.legacyId)).collect(),
-        ctx.db.query("operatorTasks").filter((q: any) => q.eq(q.field("userId"), user.legacyId)).collect(),
+        collectOwnedRows(ctx, "operatorGoals", user.legacyId),
+        collectOwnedRows(ctx, "operatorTasks", user.legacyId),
         ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", user.legacyId)).collect(),
       ])
       return {
@@ -173,10 +176,10 @@ export const getUserDetail = query({
     const user = await userById(ctx, userId)
     if (!user) return null
     const [conversations, messages, goals, tasks, subscriptions] = await Promise.all([
-      ctx.db.query("operatorConversations").filter((q: any) => q.eq(q.field("userId"), userId)).collect(),
-      ctx.db.query("operatorMessages").filter((q: any) => q.eq(q.field("userId"), userId)).collect(),
-      ctx.db.query("operatorGoals").filter((q: any) => q.eq(q.field("userId"), userId)).collect(),
-      ctx.db.query("operatorTasks").filter((q: any) => q.eq(q.field("userId"), userId)).collect(),
+      collectOwnedRows(ctx, "operatorConversations", userId),
+      collectOwnedRows(ctx, "operatorMessages", userId),
+      collectOwnedRows(ctx, "operatorGoals", userId),
+      collectOwnedRows(ctx, "operatorTasks", userId),
       ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
     ])
     return {
@@ -199,6 +202,7 @@ export const updateUser = mutation({
     if (!user) throw new Error("User not found")
     const name = args.name.replace(/\s+/g, " ").trim().slice(0, 100)
     if (name.length < 2) throw new Error("Name must contain at least 2 characters")
+    await assertPlanSupportsActiveGoals(ctx, { userId: args.userId, planTier: args.planTier })
     await ctx.db.patch(user._id, { name, planTier: args.planTier, updatedAt: new Date().toISOString() })
     await writeAudit(ctx, {
       actor: args.actor,
@@ -212,19 +216,28 @@ export const updateUser = mutation({
 })
 
 export const setUserAccess = mutation({
-  args: { actor: v.string(), userId: v.string(), suspended: v.boolean() },
+  args: { actor: v.string(), userId: v.string(), suspended: v.boolean(), reason: v.optional(v.string()) },
   handler: async (ctx, args) => {
     await requireServer(ctx)
     const user = await userById(ctx, args.userId)
     if (!user) throw new Error("User not found")
     const timestamp = new Date().toISOString()
-    await ctx.db.patch(user._id, { deletedAt: args.suspended ? timestamp : undefined, updatedAt: timestamp })
+    const reason = args.reason?.trim().slice(0, 300)
+    if (args.suspended && (!reason || reason.length < 3)) throw new Error("A suspension reason is required")
+    await ctx.db.patch(user._id, {
+      accountStatus: args.suspended ? "suspended" : "active",
+      suspendedAt: args.suspended ? timestamp : undefined,
+      suspensionReason: args.suspended ? reason : undefined,
+      suspensionActor: args.suspended ? args.actor : undefined,
+      deletedAt: undefined,
+      updatedAt: timestamp,
+    })
     await writeAudit(ctx, {
       actor: args.actor,
       action: args.suspended ? "user.suspend" : "user.restore",
       targetType: "user",
       targetId: args.userId,
-      summary: `${args.suspended ? "Suspended" : "Restored"} access for ${user.email}.`,
+      summary: `${args.suspended ? "Suspended" : "Restored"} access for ${user.email}.${args.suspended ? ` Reason: ${reason}` : ""}`,
     })
     return true
   },
@@ -241,11 +254,12 @@ export const setGoalStatus = mutation({
     await requireServer(ctx)
     const goal = await ctx.db.query("operatorGoals").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.goalId)).unique()
     if (!goal || goal.userId !== args.userId) throw new Error("Goal not found")
+    if (args.status === "active") await assertGoalCanBeActive(ctx, { userId: args.userId, goalId: args.goalId })
     const timestamp = new Date().toISOString()
     await ctx.db.patch(goal._id, {
       status: args.status,
       updatedAt: timestamp,
-      ...(args.status === "completed" ? { completedAt: timestamp } : {}),
+      completedAt: args.status === "completed" ? (goal.completedAt ?? timestamp) : undefined,
     })
     if (args.status !== "active") {
       const tasks = await ctx.db.query("operatorTasks").withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId).eq("status", "todo")).collect()
@@ -319,8 +333,8 @@ export const deleteUser = mutation({
       throw new Error("Confirmation email does not match")
     }
     const deleted: Record<string, number> = {}
-    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions", "billingCheckoutLocks"] as const) {
-      const rows = await ctx.db.query(table).filter((q: any) => q.eq(q.field("userId"), args.userId)).collect()
+    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions", "billingCheckoutLocks", "aiDailyUsage"] as const) {
+      const rows = await collectOwnedRows(ctx, table, args.userId)
       deleted[table] = rows.length
       for (const row of rows) await ctx.db.delete(row._id)
     }

@@ -22,7 +22,7 @@ export async function updateSettingsAction(_state: SettingsActionState, formData
   const legacyForm = !section
   const coachTone = (section === "coach" || legacyForm ? field(formData, "coachTone") : account.preferences.coachTone) as CoachTone
   const timezone = section === "general" || legacyForm ? field(formData, "timezone") : account.preferences.timezone
-  const emailNotifications = section === "notifications" || legacyForm ? formData.get("emailNotifications") === "on" : account.preferences.emailNotifications
+  const emailNotifications = legacyForm ? formData.get("emailNotifications") === "on" : account.preferences.emailNotifications
   if (!["supportive", "balanced", "blunt"].includes(coachTone)) return { error: "Choose a conversation style." }
   try {
     await updateAccountPreferences({

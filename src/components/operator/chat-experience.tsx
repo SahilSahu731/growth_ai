@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState, useCallback, useEffect, useRef, useState } from "react"
+import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { ArrowRight, ArrowUp, Brain, Check, CheckCircle2, FileText, ListTodo, LockKeyhole, Sparkles, Target, type LucideIcon } from "lucide-react"
 
 import {
   acceptOperatorTasksAction,
+  loadOlderMessagesAction,
   sendOperatorMessageAction,
   type ChatActionState,
   type OperatorFormState,
@@ -13,6 +14,7 @@ import {
 import { BrandLogo } from "@/components/brand-logo"
 import { EditableTaskCard } from "@/components/operator/editable-task-card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { addDateDays, dateKeyInTimeZone, formatDateOnly } from "@/lib/date-time"
 import type { OperatorMessage, OperatorTask, OperatorWeeklyActivity, OperatorWorkspace } from "@/lib/operator/types"
 
 const starters = [
@@ -22,20 +24,58 @@ const starters = [
 ]
 
 export function ChatExperience({ workspace, weeklyActivity, userName }: { workspace: OperatorWorkspace; weeklyActivity: OperatorWeeklyActivity | null; userName: string }) {
+  const draftStorageKey = `growthai:chat-draft:${workspace.conversation.id}`
   const [draft, setDraft] = useState("")
+  const [olderMessages, setOlderMessages] = useState<OperatorMessage[]>([])
+  const [historyCursor, setHistoryCursor] = useState(workspace.messageCursor)
+  const [historyDone, setHistoryDone] = useState(!workspace.hasMoreMessages)
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const submitMessage = useCallback(async (previous: ChatActionState, formData: FormData) => {
     const next = await sendOperatorMessageAction(previous, formData)
-    if (next.sentAt) setDraft("")
+    if (next.sentAt) {
+      setDraft("")
+      window.localStorage.removeItem(draftStorageKey)
+    }
     return next
-  }, [])
+  }, [draftStorageKey])
   const [state, sendAction, pending] = useActionState(submitMessage, {} as ChatActionState)
   const formRef = useRef<HTMLFormElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const firstName = userName.trim().split(/\s+/)[0] || "there"
+  const recentIds = new Set(workspace.messages.map((message) => message.id))
+  const messages = [...olderMessages.filter((message) => !recentIds.has(message.id)), ...workspace.messages]
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-  }, [workspace.messages.length])
+  }, [messages.length])
+
+  useEffect(() => {
+    const restoreTimer = window.setTimeout(() => {
+      setDraft(window.localStorage.getItem(draftStorageKey) ?? "")
+    }, 0)
+    return () => window.clearTimeout(restoreTimer)
+  }, [draftStorageKey])
+
+  function updateDraft(value: string) {
+    setDraft(value)
+    if (value) window.localStorage.setItem(draftStorageKey, value)
+    else window.localStorage.removeItem(draftStorageKey)
+  }
+
+  async function loadEarlierMessages() {
+    if (loadingHistory || historyDone || !historyCursor) return
+    setLoadingHistory(true)
+    const result = await loadOlderMessagesAction(workspace.conversation.id, historyCursor)
+    if (!("error" in result)) {
+      setOlderMessages((current) => {
+        const known = new Set([...current, ...workspace.messages].map((message) => message.id))
+        return [...result.page.filter((message) => !known.has(message.id)), ...current]
+      })
+      setHistoryCursor(result.continueCursor)
+      setHistoryDone(result.isDone)
+    }
+    setLoadingHistory(false)
+  }
 
   return (
     <div className="grid h-svh min-h-0 w-full overflow-hidden bg-[#111] xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -53,12 +93,13 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
         </div>
 
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
-          {workspace.messages.length === 0 ? (
+          {messages.length === 0 ? (
             <EmptyConversation firstName={firstName} conversationId={workspace.conversation.id} workspace={workspace} weeklyActivity={weeklyActivity} sendAction={sendAction} pending={pending} />
           ) : (
             <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-7 sm:py-10">
-              {workspace.messages.map((message) => (
-                <Message key={message.id} message={message} conversationId={workspace.conversation.id} sendAction={sendAction} pending={pending} />
+              {!historyDone ? <button type="button" disabled={loadingHistory} onClick={() => void loadEarlierMessages()} className="mx-auto mb-8 block rounded-full border border-white/10 px-4 py-2 text-xs text-white/55 transition hover:border-primary/30 hover:text-white disabled:opacity-50">{loadingHistory ? "Loading…" : "Load earlier messages"}</button> : null}
+              {messages.map((message) => (
+                <Message key={message.id} message={message} conversationId={workspace.conversation.id} sendAction={sendAction} pending={pending} locale={workspace.locale} timezone={workspace.timezone} />
               ))}
               {pending ? <Thinking /> : null}
               <div ref={endRef} />
@@ -73,19 +114,20 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
               <span className="rounded-full bg-primary/[.12] px-2 py-0.5 text-[10px] text-primary">{workspace.tasks.length}</span>
             </summary>
             <div className="max-h-52 space-y-2 overflow-y-auto border-t border-white/[.08] p-2.5">
-              {workspace.tasks.map((task) => <EditableTaskCard key={task.id} task={task} goals={workspace.goals} compact />)}
+              {workspace.tasks.map((task) => <EditableTaskCard key={task.id} task={task} goals={workspace.goals} locale={workspace.locale} compact />)}
             </div>
           </details>
         ) : null}
 
         <div className="shrink-0 bg-[linear-gradient(to_top,#171717_75%,transparent)] px-4 pb-4 pt-3 sm:px-7 sm:pb-6">
-          <form ref={formRef} action={sendAction} className="mx-auto max-w-3xl">
+          <form ref={formRef} action={sendAction} onSubmit={assignNewRequestId} className="mx-auto max-w-3xl">
             <input type="hidden" name="conversationId" value={workspace.conversation.id} />
+            <input type="hidden" name="requestId" />
             <div className="rounded-2xl border border-white/[.12] bg-[#242424] p-2 shadow-[0_12px_35px_rgba(0,0,0,.3)] transition focus-within:border-primary/40 focus-within:ring-4 focus-within:ring-primary/[.05]">
               <textarea
                 name="message"
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => updateDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault()
@@ -114,7 +156,7 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
         </div>
       </section>
 
-      <TaskPanel tasks={workspace.tasks} goals={workspace.goals} />
+      <TaskPanel tasks={workspace.tasks} goals={workspace.goals} locale={workspace.locale} />
     </div>
   )
 }
@@ -157,8 +199,9 @@ function EmptyConversation({
       <p className="mt-8 text-[10px] font-bold uppercase tracking-[.16em] text-white/30">Or start with one of these</p>
       <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
         {starters.map((starter) => (
-          <form key={starter} action={sendAction}>
+          <form key={starter} action={sendAction} onSubmit={assignNewRequestId}>
             <input type="hidden" name="conversationId" value={conversationId} />
+            <input type="hidden" name="requestId" />
             <button
               name="message"
               value={starter}
@@ -187,16 +230,28 @@ function Message({
   conversationId,
   sendAction,
   pending,
+  locale,
+  timezone,
 }: {
   message: OperatorMessage
   conversationId: string
   sendAction: (payload: FormData) => void
   pending: boolean
+  locale: string
+  timezone: string
 }) {
   if (message.role === "user") {
     return (
-      <div className="mb-8 flex justify-end">
+      <div className="mb-8 flex flex-col items-end gap-2">
         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[#2b2b2b] px-4 py-3 text-sm leading-6 text-white/85 sm:max-w-[72%]">{message.content}</div>
+        {message.generationStatus === "failed" && message.requestId ? (
+          <form action={sendAction}>
+            <input type="hidden" name="conversationId" value={conversationId} />
+            <input type="hidden" name="requestId" value={message.requestId} />
+            <input type="hidden" name="message" value={message.content} />
+            <button disabled={pending} className="rounded-full border border-red-300/20 px-3 py-1.5 text-[10px] font-semibold text-red-200 transition hover:border-red-300/40 disabled:opacity-50">Retry answer</button>
+          </form>
+        ) : message.generationStatus === "pending" ? <span className="text-[10px] text-white/35">Answer pending…</span> : null}
       </div>
     )
   }
@@ -208,14 +263,15 @@ function Message({
         <p className="whitespace-pre-wrap text-sm leading-7 text-white/80">{message.content}</p>
 
         {message.taskDrafts.length ? (
-          <TaskProposal message={message} conversationId={conversationId} />
+          <TaskProposal message={message} conversationId={conversationId} locale={locale} timezone={timezone} />
         ) : null}
 
         {message.quickReplies.length ? (
           <div className="mt-5 flex flex-wrap gap-2">
             {message.quickReplies.map((reply) => (
-              <form key={reply} action={sendAction}>
+              <form key={reply} action={sendAction} onSubmit={assignNewRequestId}>
                 <input type="hidden" name="conversationId" value={conversationId} />
+                <input type="hidden" name="requestId" />
                 <button
                   name="message"
                   value={reply}
@@ -233,7 +289,12 @@ function Message({
   )
 }
 
-function TaskProposal({ message, conversationId }: { message: OperatorMessage; conversationId: string }) {
+function assignNewRequestId(event: FormEvent<HTMLFormElement>) {
+  const input = event.currentTarget.elements.namedItem("requestId")
+  if (input instanceof HTMLInputElement) input.value = crypto.randomUUID()
+}
+
+function TaskProposal({ message, conversationId, locale, timezone }: { message: OperatorMessage; conversationId: string; locale: string; timezone: string }) {
   const [state, action, pending] = useActionState(acceptOperatorTasksAction, {} as OperatorFormState)
   return (
     <div className="mt-5 overflow-hidden rounded-2xl border border-white/[.1] bg-[#202020]">
@@ -250,7 +311,7 @@ function TaskProposal({ message, conversationId }: { message: OperatorMessage; c
               <span className="mt-1.5 inline-flex rounded-full bg-primary/[.1] px-2 py-0.5 text-[9px] font-bold text-primary">Goal · {task.goalTitle || "Personal growth"}</span>
               {task.note ? <p className="mt-1 text-xs leading-5 text-white/35">{task.note}</p> : null}
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-white/30">
-                <span>{formatTaskDate(task.scheduledFor)}</span>
+                <span>{formatTaskDate(task.scheduledFor, locale, timezone)}</span>
                 <span>{task.estimatedMinutes} min</span>
                 <span>Done when: {task.completionCondition}</span>
               </div>
@@ -274,7 +335,7 @@ function TaskProposal({ message, conversationId }: { message: OperatorMessage; c
   )
 }
 
-function TaskPanel({ tasks, goals }: { tasks: OperatorTask[]; goals: OperatorWorkspace["goals"] }) {
+function TaskPanel({ tasks, goals, locale }: { tasks: OperatorTask[]; goals: OperatorWorkspace["goals"]; locale: string }) {
   return (
     <aside className="hidden min-h-0 flex-col border-l border-white/[.08] bg-[#121212] xl:flex">
       <div className="border-b border-white/[.08] px-5 py-5">
@@ -290,7 +351,7 @@ function TaskPanel({ tasks, goals }: { tasks: OperatorTask[]; goals: OperatorWor
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
         {tasks.length ? (
           <div className="space-y-2">
-            {tasks.map((task) => <EditableTaskCard key={task.id} task={task} goals={goals} compact />)}
+            {tasks.map((task) => <EditableTaskCard key={task.id} task={task} goals={goals} locale={locale} compact />)}
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center px-5 text-center">
@@ -313,11 +374,9 @@ function Thinking() {
   )
 }
 
-function formatTaskDate(value: string) {
-  const today = new Date().toISOString().slice(0, 10)
+function formatTaskDate(value: string, locale: string, timezone: string) {
+  const today = dateKeyInTimeZone(new Date(), timezone)
   if (value === today) return "Today"
-  const tomorrow = new Date()
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
-  if (value === tomorrow.toISOString().slice(0, 10)) return "Tomorrow"
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`))
+  if (value === addDateDays(today, 1)) return "Tomorrow"
+  return formatDateOnly(value, locale, { month: "short", day: "numeric" })
 }

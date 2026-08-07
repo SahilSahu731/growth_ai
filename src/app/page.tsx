@@ -5,6 +5,7 @@ import { ArrowUpRight, Brain, Check, ChevronRight, Compass, Heart, Leaf, LineCha
 import { authOptions } from "@/auth"
 import { BrandLogo } from "@/components/brand-logo"
 import { DynamicGrowthShowcase } from "@/components/landing/dynamic-growth-showcase"
+import { SiteFooter } from "@/components/landing/site-footer"
 
 const lifeAreas = ["Health", "Career", "Relationships", "Learning", "Finances", "Creativity", "Wellbeing"]
 
@@ -54,8 +55,8 @@ export default async function HomePage() {
       </section>
 
       <section className="py-16 text-center"><div className="mx-auto max-w-4xl rounded-3xl border border-neutral-200 bg-white px-6 py-14 shadow-sm"><Leaf className="mx-auto size-7 text-primary" /><h2 className="mt-6 text-4xl font-black tracking-[-.04em] sm:text-6xl">What would feel meaningfully better?</h2><p className="mx-auto mt-5 max-w-xl text-base leading-8 text-neutral-500">Start there. Choose one small direction, and let GrowthAI help you keep returning to it.</p><Link href={startHref} className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-primary px-7 text-sm font-semibold text-primary-foreground transition hover:-translate-y-0.5 hover:bg-primary/85">Start growing free<ArrowUpRight className="size-4" /></Link></div></section>
-      <footer className="flex flex-col gap-3 border-t border-neutral-200 py-8 text-xs font-semibold text-neutral-500 sm:flex-row sm:items-center sm:justify-between"><p>© 2026 GrowthAI · A quieter way to change.</p><div className="flex gap-5"><Link href="/pricing">Pricing</Link><a href="mailto:support@growthai.app">Support</a></div></footer>
     </div>
+    <SiteFooter signedIn={Boolean(session?.user)} />
   </main>
 }
 

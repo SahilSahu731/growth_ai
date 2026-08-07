@@ -48,6 +48,8 @@ async function requireAdmin() {
 function safeMessage(error: unknown): string {
   if (error instanceof Error && error.message.includes("session has expired")) return error.message
   if (!(error instanceof Error)) return "The change could not be completed. Please try again."
+  const coded = error.message.match(/^(GOAL_LIMIT_REACHED|USER_NOT_FOUND|GOAL_NOT_FOUND|TASK_NOT_FOUND|CONVERSATION_NOT_FOUND):\s*(.+)$/)
+  if (coded) return coded[2]
   const allowed = [
     "User not found", "Goal not found", "Task not found", "Conversation not found",
     "Confirmation email does not match", "Name must contain at least 2 characters", "Announcement not found",
@@ -124,8 +126,10 @@ export async function setUserAccessAction(_state: AdminActionState, formData: Fo
     const session = await requireAdmin()
     const userId = text(formData, "userId")
     const suspended = text(formData, "suspended") === "true"
+    const reason = text(formData, "reason")
     if (!userId) return { error: "User not found." }
-    await setAdminUserAccess({ actor: session.email, userId, suspended })
+    if (suspended && reason.length < 3) return { error: "Enter a suspension reason." }
+    await setAdminUserAccess({ actor: session.email, userId, suspended, ...(suspended ? { reason } : {}) })
     revalidatePath(`/admin/users/${userId}`)
     revalidatePath("/admin/users")
     revalidatePath("/admin")

@@ -2,9 +2,12 @@ import "server-only"
 
 import { convexMutation, convexQuery } from "@/lib/convex-server"
 import { getAccountOverview } from "@/lib/data/account"
+import { sevenDayWindowStart } from "@/lib/date-time"
 import type {
   OperatorConversation,
   OperatorGoal,
+  OperatorMessage,
+  OperatorMessagePage,
   OperatorTask,
   OperatorTurn,
   OperatorWeeklyActivity,
@@ -35,10 +38,23 @@ export function getOperatorWorkspace(userId: string, conversationId: string): Pr
   return convexQuery("operator:getWorkspace", { userId, conversationId })
 }
 
+export function getOperatorMessagePage(input: {
+  userId: string
+  conversationId: string
+  cursor: string
+  numItems?: number
+}): Promise<OperatorMessagePage> {
+  return convexQuery("operator:getMessagePage", {
+    userId: input.userId,
+    conversationId: input.conversationId,
+    paginationOpts: { cursor: input.cursor, numItems: Math.min(Math.max(input.numItems ?? 80, 1), 80) },
+  })
+}
+
 export async function getOperatorWeeklyActivity(userId: string): Promise<OperatorWeeklyActivity | null> {
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const account = await getAccountOverview(userId)
   if (!account) return null
+  const since = sevenDayWindowStart(account.preferences.timezone).toISOString()
   const workspaces = (await Promise.all(
     account.conversations.map((conversation) => convexQuery<
       { userId: string; conversationId: string }, OperatorWorkspace | null
@@ -57,13 +73,40 @@ export async function getOperatorWeeklyActivity(userId: string): Promise<Operato
   }
 }
 
-export function appendOperatorExchange(input: {
+export function beginOperatorTurn(input: {
   userId: string
   conversationId: string
+  requestId: string
+  leaseId: string
+  rateLimitKey: string
+  localDate: string
   userMessage: string
+}): Promise<{ message: OperatorMessage; acquired: boolean; status: "pending" | "complete" | "failed" }> {
+  return convexMutation("operator:beginTurn", input)
+}
+
+export function completeOperatorTurn(input: {
+  userId: string
+  conversationId: string
+  userMessageId: string
+  leaseId: string
   assistant: OperatorTurn
-}) {
-  return convexMutation("operator:appendExchange", input)
+}): Promise<OperatorMessage> {
+  return convexMutation("operator:completeTurn", input)
+}
+
+export function failOperatorTurn(input: {
+  userId: string
+  conversationId: string
+  userMessageId: string
+  leaseId: string
+  failureCode: string
+}): Promise<boolean> {
+  return convexMutation("operator:failTurn", input)
+}
+
+export function recordOperatorProviderOutcome(success: boolean): Promise<{ open: boolean; consecutiveFailures: number }> {
+  return convexMutation("operator:recordProviderOutcome", { provider: "gemini", success })
 }
 
 export function acceptOperatorTasks(input: { userId: string; conversationId: string; messageId: string }): Promise<{ created: number; alreadyAccepted: boolean }> {

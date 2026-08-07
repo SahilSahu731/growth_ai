@@ -36,7 +36,6 @@ Then add the values from the Google client:
 ```dotenv
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="replace-with-a-long-random-secret"
 AUTH_SECRET="replace-with-a-long-random-secret"
 GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
@@ -56,12 +55,13 @@ In Vercel, open the GrowthAI project and go to **Settings → Environment Variab
 
 - `NEXT_PUBLIC_APP_URL` = `https://YOUR_DOMAIN`
 - `NEXTAUTH_URL` = `https://YOUR_DOMAIN`
-- `NEXTAUTH_SECRET`
 - `AUTH_SECRET`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 
 Apply them to the environments you use and redeploy. Vercel applies newly added or changed environment variables only to new deployments.
+
+Run `npm run validate:env` with the production-scoped variables before deployment. Preview and production must use different OAuth clients, Convex deployments, secrets, and provider projects.
 
 ## 4. Troubleshooting
 

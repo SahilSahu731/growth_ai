@@ -13,7 +13,10 @@ export const metadata: Metadata = { robots: { index: false, follow: false } }
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
 
-  if (session?.user) redirect("/chat")
+  // A NextAuth session shell can exist without a valid application user ID
+  // during an expired/failed account lookup. Redirecting that shell to /chat
+  // creates a /login ↔ /chat loop with the protected layout.
+  if (session?.user?.id) redirect("/chat")
 
   return (
     <div className="auth-fullscreen relative min-h-screen overflow-hidden bg-[#050706] text-white">

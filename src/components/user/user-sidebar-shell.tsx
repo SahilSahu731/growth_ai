@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { CreditCard, Crown, SquarePen } from "lucide-react"
+import { Crown, SquarePen } from "lucide-react"
 import { ConversationHistoryItem } from "@/components/user/conversation-history-item"
 import { UpgradeDialogProvider, UpgradeTrigger } from "@/components/billing/upgrade-dialog"
 
@@ -205,8 +205,6 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
                 <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="size-5" />
               </Link>
             </div>
-
-            <Link href="/billing" className={cn("flex h-9 items-center gap-2 rounded-lg px-2 text-xs font-semibold text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-950", isActive(pathname, "/billing") && "bg-neutral-100 text-neutral-950")}><CreditCard className="size-4" /><span className="group-data-[collapsible=icon]:hidden">Plan & billing</span></Link>
 
             <Button
               type="button"

@@ -1,0 +1,42 @@
+{
+  "fixtureVersion": 1,
+  "notice": "Entirely synthetic test data. Safe for local automated tests.",
+  "user": {
+    "id": "fixture-user-alex",
+    "name": "Alex Example",
+    "email": "alex@example.test",
+    "authProvider": "fixture",
+    "planTier": "free",
+    "timezone": "Asia/Kolkata",
+    "locale": "en-IN"
+  },
+  "conversation": {
+    "id": "fixture-conversation-weekly-focus",
+    "title": "Choose a weekly focus",
+    "state": "discovery"
+  },
+  "messages": [
+    {
+      "id": "fixture-message-user-1",
+      "role": "user",
+      "content": "I want to finish a small portfolio case study this week."
+    },
+    {
+      "id": "fixture-message-assistant-1",
+      "role": "assistant",
+      "content": "What is the smallest version that would still demonstrate your work?"
+    }
+  ],
+  "goal": {
+    "id": "fixture-goal-portfolio",
+    "title": "Publish one portfolio case study",
+    "status": "active"
+  },
+  "task": {
+    "id": "fixture-task-outline",
+    "title": "Outline the case study",
+    "status": "todo",
+    "estimatedMinutes": 25,
+    "completionCondition": "A five-section outline exists."
+  }
+}

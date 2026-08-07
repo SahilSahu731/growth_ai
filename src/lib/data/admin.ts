@@ -11,6 +11,9 @@ export type AdminUser = {
   email: string
   authProvider: string
   planTier: AdminPlanTier
+  accountStatus?: "active" | "suspended" | "deletion_pending" | "deleted"
+  suspendedAt?: string
+  suspensionReason?: string
   deletedAt?: string
   createdAt: string
   updatedAt: string
@@ -68,7 +71,7 @@ export function updateAdminUser(input: { actor: string; userId: string; name: st
   return convexMutation("admin:updateUser", input)
 }
 
-export function setAdminUserAccess(input: { actor: string; userId: string; suspended: boolean }): Promise<boolean> {
+export function setAdminUserAccess(input: { actor: string; userId: string; suspended: boolean; reason?: string }): Promise<boolean> {
   return convexMutation("admin:setUserAccess", input)
 }
 

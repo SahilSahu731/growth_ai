@@ -6,16 +6,17 @@ import { authOptions } from "@/auth"
 import { CancelSubscription } from "@/components/billing/cancel-subscription"
 import { UpgradeTrigger } from "@/components/billing/upgrade-dialog"
 import { getUserBilling } from "@/lib/data/account"
+import { safeLocale } from "@/lib/date-time"
 
 export const dynamic = "force-dynamic"
 export const metadata = { title: "Billing" }
 
-function date(value?: string) {
-  return value ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value)) : "Not available"
+function date(value: string | undefined, locale: string, timeZone: string) {
+  return value ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(new Date(value)) : "Not available"
 }
 
-function money(amount: number, currency: string) {
-  return (amount / 100).toLocaleString("en-IN", { style: "currency", currency })
+function money(amount: number, currency: string, locale: string) {
+  return (amount / 100).toLocaleString(locale, { style: "currency", currency })
 }
 
 function statusStyle(status: string) {
@@ -30,6 +31,7 @@ export default async function BillingPage() {
   const billing = await getUserBilling(session.user.id)
   if (!billing) redirect("/login?callbackUrl=/billing")
   const current = billing.current
+  const locale = safeLocale(billing.locale)
   const paid = billing.planTier !== "free"
   const cancellable = current && ["created", "pending", "authenticated", "active"].includes(current.status)
 
@@ -42,7 +44,7 @@ export default async function BillingPage() {
     <section className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
       <article className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-7">
         <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Current entitlement</p><p className="mt-3 text-3xl font-black capitalize text-neutral-950">{billing.planTier}</p></div><span className="flex size-11 items-center justify-center rounded-2xl bg-primary/10"><CreditCard className="size-5 text-primary" /></span></div>
-        {current ? <div className="mt-6 grid gap-3 sm:grid-cols-3"><Detail label="Subscription" value={current.providerSubscriptionId} mono /><Detail label="Status" value={current.cancelAtPeriodEnd ? "Cancels at period end" : current.status} /><Detail label="Renewal / period end" value={date(current.periodEnd)} /></div> : <div className="mt-6 rounded-2xl border border-dashed border-neutral-300 p-5"><p className="text-xs font-bold text-neutral-700">No paid subscription</p><p className="mt-2 text-xs leading-5 text-neutral-500">The Free plan has no payment method or recurring charge.</p></div>}
+        {current ? <div className="mt-6 grid gap-3 sm:grid-cols-3"><Detail label="Subscription" value={current.providerSubscriptionId} mono /><Detail label="Status" value={current.cancelAtPeriodEnd ? "Cancels at period end" : current.status} /><Detail label="Renewal / period end" value={date(current.periodEnd, locale, billing.timezone)} /></div> : <div className="mt-6 rounded-2xl border border-dashed border-neutral-300 p-5"><p className="text-xs font-bold text-neutral-700">No paid subscription</p><p className="mt-2 text-xs leading-5 text-neutral-500">The Free plan has no payment method or recurring charge.</p></div>}
         <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-neutral-200 pt-5">
           {current?.checkoutUrl && ["created", "pending"].includes(current.status) ? <a href={current.checkoutUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground">Resume secure checkout<ArrowUpRight className="size-4" /></a> : null}
           {cancellable ? <CancelSubscription disabled={current.cancelAtPeriodEnd} /> : null}
@@ -55,7 +57,7 @@ export default async function BillingPage() {
 
     <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-7">
       <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-xl bg-neutral-100"><History className="size-4 text-neutral-500" /></span><div><h2 className="text-lg font-black text-neutral-900">Subscription history</h2><p className="mt-1 text-xs text-neutral-500">Provider-confirmed lifecycle records for this account.</p></div></div>
-      {billing.subscriptions.length ? <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[700px] text-left"><thead><tr className="border-b border-neutral-200 text-[10px] uppercase tracking-wider text-neutral-400"><th className="pb-3">Plan</th><th className="pb-3">Status</th><th className="pb-3">Amount</th><th className="pb-3">Period</th><th className="pb-3 text-right">Updated</th></tr></thead><tbody>{billing.subscriptions.map((item) => <tr key={item.id} className="border-b border-neutral-100 last:border-0"><td className="py-4 text-xs font-bold capitalize text-neutral-800">{item.planTier}</td><td className="py-4"><span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase ${statusStyle(item.status)}`}>{item.status}</span></td><td className="py-4 text-xs text-neutral-500">{money(item.amount, item.currency)}</td><td className="py-4 text-[10px] text-neutral-500">{date(item.periodStart)} – {date(item.periodEnd)}</td><td className="py-4 text-right text-[10px] text-neutral-400">{date(item.updatedAt)}</td></tr>)}</tbody></table></div> : <p className="mt-6 rounded-2xl border border-dashed border-neutral-300 py-10 text-center text-xs text-neutral-500">No subscription history yet.</p>}
+      {billing.subscriptions.length ? <div className="mt-6 overflow-x-auto"><table className="w-full min-w-[700px] text-left"><thead><tr className="border-b border-neutral-200 text-[10px] uppercase tracking-wider text-neutral-400"><th className="pb-3">Plan</th><th className="pb-3">Status</th><th className="pb-3">Amount</th><th className="pb-3">Period</th><th className="pb-3 text-right">Updated</th></tr></thead><tbody>{billing.subscriptions.map((item) => <tr key={item.id} className="border-b border-neutral-100 last:border-0"><td className="py-4 text-xs font-bold capitalize text-neutral-800">{item.planTier}</td><td className="py-4"><span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase ${statusStyle(item.status)}`}>{item.status}</span></td><td className="py-4 text-xs text-neutral-500">{money(item.amount, item.currency, locale)}</td><td className="py-4 text-[10px] text-neutral-500">{date(item.periodStart, locale, billing.timezone)} – {date(item.periodEnd, locale, billing.timezone)}</td><td className="py-4 text-right text-[10px] text-neutral-400">{date(item.updatedAt, locale, billing.timezone)}</td></tr>)}</tbody></table></div> : <p className="mt-6 rounded-2xl border border-dashed border-neutral-300 py-10 text-center text-xs text-neutral-500">No subscription history yet.</p>}
     </section>
   </div>
 }

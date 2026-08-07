@@ -17,19 +17,16 @@ export function constantTimeTextEqual(left: string, right: string): boolean {
 
 export function resolveAdminCredentialConfig(environment: Record<string, string | undefined>): ResolvedAdminCredentialConfig | null {
   const email = environment.ADMIN_EMAIL?.trim().toLowerCase() ?? ""
-  const plainPassword = environment.ADMIN_PASSWORD ?? ""
   const configuredHash = environment.ADMIN_PASSWORD_HASH ?? ""
-  const passwordCredential = plainPassword || configuredHash
-  const passwordIsHash = !plainPassword && configuredHash.startsWith("$2")
-  const sessionSecretSource = environment.ADMIN_SESSION_SECRET || environment.AUTH_SECRET || environment.NEXTAUTH_SECRET || ""
+  const passwordCredential = configuredHash
+  const passwordIsHash = /^\$2[aby]\$\d{2}\$/.test(configuredHash)
+  const sessionSecretSource = environment.ADMIN_SESSION_SECRET ?? ""
   const sessionVersion = environment.ADMIN_SESSION_VERSION?.trim() || "1"
-  if (!email || !passwordCredential || !sessionSecretSource) return null
+  if (!email || !passwordIsHash || sessionSecretSource.length < 32) return null
   const sessionSecret = createHash("sha256").update(`growthai-admin-session|${sessionSecretSource}`).digest("hex")
   return { email, passwordCredential, passwordIsHash, sessionSecret, sessionVersion }
 }
 
 export async function matchesAdminPassword(password: string, config: ResolvedAdminCredentialConfig): Promise<boolean> {
-  return config.passwordIsHash
-    ? compare(password, config.passwordCredential).catch(() => false)
-    : constantTimeTextEqual(password, config.passwordCredential)
+  return compare(password, config.passwordCredential).catch(() => false)
 }

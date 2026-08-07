@@ -9,10 +9,21 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
 # testing
 /coverage
 /backups/
+/playwright-report/
+/test-results/
+/blob-report/
+
+# Local exports and sensitive working data
+/exports/
+/screenshots/
+/transcripts/
+/logs/
+*.convex-export.zip
+*.jsonl
+*.log
 
 # next.js
 /.next/

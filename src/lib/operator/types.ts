@@ -47,6 +47,19 @@ export type OperatorMessage = {
   quickReplies: string[]
   taskDrafts: OperatorTaskDraft[]
   modelName?: string
+  requestId?: string
+  usageDate?: string
+  replyToMessageId?: string
+  generationStatus?: "pending" | "complete" | "failed" | "cancelled"
+  generationAttempt?: number
+  failureCode?: string
+  promptVersion?: string
+  latencyMs?: number
+  inputTokens?: number
+  outputTokens?: number
+  estimatedCostUsd?: number
+  generationOutcome?: string
+  finishReason?: string
   tasksAcceptedAt?: string
   createdAt: string
 }
@@ -54,8 +67,10 @@ export type OperatorMessage = {
 export type OperatorTask = {
   id: string
   userId: string
-  conversationId: string
-  sourceMessageId: string
+  conversationId?: string
+  sourceMessageId?: string
+  originConversationTitle?: string
+  originMessageCreatedAt?: string
   goalId: string
   title: string
   note: string
@@ -72,10 +87,15 @@ export type OperatorTask = {
 export type OperatorWorkspace = {
   conversation: OperatorConversation
   messages: OperatorMessage[]
+  messageCursor: string
+  hasMoreMessages: boolean
   tasks: OperatorTask[]
   goals: OperatorGoal[]
   goalLimit: number
   timezone: string
+  locale: string
+  coachTone: "supportive" | "balanced" | "blunt"
+  providerCircuitOpen: boolean
 }
 
 export type OperatorWeeklyActivity = {
@@ -92,4 +112,17 @@ export type OperatorTurn = {
   quickReplies: string[]
   taskDrafts: OperatorTaskDraft[]
   modelName: string
+  promptVersion: string
+  latencyMs: number
+  inputTokens?: number
+  outputTokens?: number
+  estimatedCostUsd?: number
+  generationOutcome: string
+  finishReason?: string
+}
+
+export type OperatorMessagePage = {
+  page: OperatorMessage[]
+  continueCursor: string
+  isDone: boolean
 }

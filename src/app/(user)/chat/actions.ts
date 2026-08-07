@@ -2,13 +2,19 @@
 
 import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
+import { headers } from "next/headers"
+import { createHmac } from "node:crypto"
 
 import { authOptions } from "@/auth"
 import {
   acceptOperatorTasks,
-  appendOperatorExchange,
+  beginOperatorTurn,
+  completeOperatorTurn,
   createOperatorGoal,
+  failOperatorTurn,
+  getOperatorMessagePage,
   getOperatorWorkspace,
+  recordOperatorProviderOutcome,
   setOperatorTaskStatus,
   updateOperatorGoal,
   updateOperatorTask,
@@ -24,6 +30,12 @@ function field(formData: FormData, name: string) {
   return typeof value === "string" ? value.trim() : ""
 }
 
+function userSafeError(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : ""
+  const coded = message.match(/^[A-Z][A-Z0-9_]+:\s*(.+)$/)?.[1]
+  return coded || message || fallback
+}
+
 function localDate(timezone: string) {
   try {
     return new Intl.DateTimeFormat("en-CA", {
@@ -37,6 +49,15 @@ function localDate(timezone: string) {
   }
 }
 
+async function rateLimitKey() {
+  const requestHeaders = await headers()
+  const address = requestHeaders.get("x-real-ip")
+    ?? (process.env.VERCEL === "1" ? requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() : null)
+    ?? "local-or-unknown"
+  const key = process.env.AUTH_SECRET ?? "growthai-development-rate-limit"
+  return createHmac("sha256", key).update(address).digest("hex")
+}
+
 export async function sendOperatorMessageAction(_state: ChatActionState, formData: FormData): Promise<ChatActionState> {
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
@@ -44,29 +65,81 @@ export async function sendOperatorMessageAction(_state: ChatActionState, formDat
 
   const conversationId = field(formData, "conversationId")
   const message = field(formData, "message")
+  const requestId = field(formData, "requestId")
   if (!conversationId) return { error: "Conversation not found. Refresh and try again." }
   if (message.length < 2) return { error: "Write a little more so GrowthAI can understand you." }
   if (message.length > 4000) return { error: "Keep this message under 4,000 characters." }
+  if (!/^[A-Za-z0-9_-]{16,100}$/.test(requestId)) return { error: "This message request expired. Please send it again." }
 
   const workspace = await getOperatorWorkspace(userId, conversationId)
   if (!workspace) return { error: "Conversation not found. Refresh and try again." }
 
+  const leaseId = crypto.randomUUID()
+  const today = localDate(workspace.timezone)
+  let persistedMessageId: string | null = null
   try {
+    const started = await beginOperatorTurn({
+      userId,
+      conversationId,
+      requestId,
+      leaseId,
+      rateLimitKey: await rateLimitKey(),
+      localDate: today,
+      userMessage: message,
+    })
+    persistedMessageId = started.message.id
+    if (started.status === "complete" || !started.acquired) {
+      revalidatePath("/chat")
+      return { sentAt: Date.now() }
+    }
     const assistant = await generateOperatorTurn({
       message,
-      history: workspace.messages,
+      history: workspace.messages.filter((item) => item.id !== started.message.id),
       tasks: workspace.tasks,
       goals: workspace.goals,
       state: workspace.conversation.state,
-      today: localDate(workspace.timezone),
+      today,
+      coachTone: workspace.coachTone,
+      locale: workspace.locale,
+      providerCircuitOpen: workspace.providerCircuitOpen,
     })
-    await appendOperatorExchange({ userId, conversationId, userMessage: message, assistant })
+    await completeOperatorTurn({ userId, conversationId, userMessageId: started.message.id, leaseId, assistant })
+    if (assistant.generationOutcome.startsWith("provider_")) {
+      await recordOperatorProviderOutcome(["provider_success", "provider_refusal"].includes(assistant.generationOutcome)).catch(() => undefined)
+    }
     revalidatePath("/chat")
     revalidatePath("/dashboard")
     return { sentAt: Date.now() }
   } catch (error) {
     console.error("Could not complete GrowthAI chat turn", error)
-    return { error: "GrowthAI could not answer just now. Your message was not lost—please try again." }
+    const messageText = error instanceof Error ? error.message : ""
+    if (messageText.includes("AI_RATE_LIMITED") || messageText.includes("AI_DAILY_LIMIT_REACHED")) {
+      return { error: messageText.split(": ").slice(1).join(": ") || "AI usage limit reached. Try again later." }
+    }
+    if (persistedMessageId) {
+      await failOperatorTurn({
+        userId,
+        conversationId,
+        userMessageId: persistedMessageId,
+        leaseId,
+        failureCode: "GENERATION_FAILED",
+      }).catch(() => false)
+      revalidatePath("/chat")
+      return { error: "Your message is saved, but GrowthAI could not answer just now. Retry it from the conversation." }
+    }
+    return { error: "GrowthAI could not save this message. Please try again." }
+  }
+}
+
+export async function loadOlderMessagesAction(conversationId: string, cursor: string) {
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id
+  if (!userId) return { error: "Your session expired.", page: [], continueCursor: "", isDone: true }
+  if (!conversationId || !cursor) return { error: "Message history cursor is invalid.", page: [], continueCursor: "", isDone: true }
+  try {
+    return await getOperatorMessagePage({ userId, conversationId, cursor })
+  } catch {
+    return { error: "Could not load earlier messages.", page: [], continueCursor: cursor, isDone: false }
   }
 }
 
@@ -82,19 +155,19 @@ export async function acceptOperatorTasksAction(_state: OperatorFormState, formD
     revalidateOperatorViews()
     return { success: result.alreadyAccepted ? "Tasks were already added." : `${result.created} tasks added.`, updatedAt: Date.now() }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not add these tasks." }
+    return { error: userSafeError(error, "Could not add these tasks.") }
   }
 }
 
-export async function setOperatorTaskStatusAction(formData: FormData): Promise<void> {
+export async function setOperatorTaskStatusAction(formData: FormData): Promise<{ success: boolean; error?: string }> {
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
-  if (!userId) return
+  if (!userId) return { success: false, error: "Your session expired." }
   const taskId = field(formData, "taskId")
   const status = field(formData, "status") as OperatorTask["status"]
-  if (!taskId || !["todo", "done", "dismissed"].includes(status)) return
-  await setOperatorTaskStatus({ userId, taskId, status })
-  revalidateOperatorViews()
+  if (!taskId || !["todo", "done", "dismissed"].includes(status)) return { success: false, error: "Invalid task update." }
+  const success = await setOperatorTaskStatus({ userId, taskId, status })
+  return { success, ...(success ? {} : { error: "Task was not found." }) }
 }
 
 export async function updateOperatorTaskAction(_state: OperatorFormState, formData: FormData): Promise<OperatorFormState> {
@@ -118,7 +191,7 @@ export async function updateOperatorTaskAction(_state: OperatorFormState, formDa
     revalidateOperatorViews()
     return { success: "Task updated.", updatedAt: Date.now() }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not update this task." }
+    return { error: userSafeError(error, "Could not update this task.") }
   }
 }
 
@@ -131,7 +204,7 @@ export async function createOperatorGoalAction(_state: OperatorFormState, formDa
     revalidateOperatorViews()
     return { success: result.duplicate ? "That goal already exists." : "Goal created.", updatedAt: Date.now() }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not create this goal." }
+    return { error: userSafeError(error, "Could not create this goal.") }
   }
 }
 
@@ -149,7 +222,7 @@ export async function updateOperatorGoalAction(_state: OperatorFormState, formDa
     revalidateOperatorViews()
     return { success: "Goal updated.", updatedAt: Date.now() }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not update this goal." }
+    return { error: userSafeError(error, "Could not update this goal.") }
   }
 }
 

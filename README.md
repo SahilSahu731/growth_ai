@@ -35,6 +35,8 @@ npm run dev
 
 Configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the root `.env.local` before testing authentication. See [Google OAuth setup](./docs/GOOGLE_OAUTH_SETUP.md) for the exact local and production callback URLs. The app remains usable without Gemini through deterministic guidance. Billing and OAuth require their corresponding environment credentials.
 
+After cloning, run `npm run hooks:install` to enable the repository's staged secret/sensitive-file guard. Production deployments must run `npm run validate:env` before building.
+
 Run `npm run convex:dev` to create or connect a development database and deploy the schema/functions. Convex functions called by the app require the trusted Next.js server identity; the deployment token stays server-only. Follow [Convex setup](./docs/CONVEX_SETUP.md) to generate that token safely and configure production.
 
 The admin workspace is available at `/admin` after its independent email, password, and session signing key are configured. It does not use member roles or member sessions. Follow [Admin setup](./docs/ADMIN_SETUP.md) before deploying it.

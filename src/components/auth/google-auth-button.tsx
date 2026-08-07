@@ -4,6 +4,8 @@ import { useState } from "react"
 import { signIn } from "next-auth/react"
 import { ArrowRight, LoaderCircle } from "lucide-react"
 
+import { safeCallbackPath } from "@/lib/safe-callback"
+
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5">
@@ -15,13 +17,13 @@ function GoogleIcon() {
   )
 }
 
-export function GoogleAuthButton({ enabled, label }: { enabled: boolean; label: string }) {
+export function GoogleAuthButton({ enabled, label, callbackUrl = "/chat" }: { enabled: boolean; label: string; callbackUrl?: string }) {
   const [pending, setPending] = useState(false)
 
   async function continueWithGoogle() {
     if (!enabled) return
     setPending(true)
-    await signIn("google", { callbackUrl: "/chat?new=1" })
+    await signIn("google", { callbackUrl: safeCallbackPath(callbackUrl) })
     setPending(false)
   }
 

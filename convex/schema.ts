@@ -18,19 +18,28 @@ export default defineSchema({
     legacyId: v.string(),
     name: v.string(),
     email: v.string(),
-    passwordHash: v.optional(v.string()),
     authProvider: v.string(),
+    providerAccountId: v.optional(v.string()),
+    emailVerifiedAt: v.optional(v.string()),
     planTier,
     timezone: v.optional(v.string()),
     locale: v.optional(v.string()),
     coachTone: v.optional(v.union(v.literal("supportive"), v.literal("balanced"), v.literal("blunt"))),
     emailNotifications: v.optional(v.boolean()),
+    accountStatus: v.optional(v.union(v.literal("active"), v.literal("suspended"), v.literal("deletion_pending"), v.literal("deleted"))),
+    suspendedAt: v.optional(v.string()),
+    suspensionReason: v.optional(v.string()),
+    suspensionActor: v.optional(v.string()),
     deletedAt: v.optional(v.string()),
     createdAt: v.string(),
     updatedAt: v.string(),
   })
     .index("by_email", ["email"])
-    .index("by_legacy_id", ["legacyId"]),
+    .index("by_provider_account", ["authProvider", "providerAccountId"])
+    .index("by_legacy_id", ["legacyId"])
+    .index("by_created", ["createdAt"])
+    .index("by_status_created", ["accountStatus", "createdAt"])
+    .index("by_plan_created", ["planTier", "createdAt"]),
 
   operatorConversations: defineTable({
     legacyId: v.string(),
@@ -55,7 +64,8 @@ export default defineSchema({
     completedAt: v.optional(v.string()),
   })
     .index("by_legacy_id", ["legacyId"])
-    .index("by_user_status", ["userId", "status"]),
+    .index("by_user_status", ["userId", "status"])
+    .index("by_user_updated", ["userId", "updatedAt"]),
 
   operatorMessages: defineTable({
     legacyId: v.string(),
@@ -74,18 +84,38 @@ export default defineSchema({
       goalTitle: v.optional(v.string()),
     })),
     modelName: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+    usageDate: v.optional(v.string()),
+    replyToMessageId: v.optional(v.string()),
+    generationStatus: v.optional(v.union(v.literal("pending"), v.literal("complete"), v.literal("failed"), v.literal("cancelled"))),
+    generationLeaseId: v.optional(v.string()),
+    generationLeaseExpiresAt: v.optional(v.string()),
+    generationAttempt: v.optional(v.number()),
+    failureCode: v.optional(v.string()),
+    promptVersion: v.optional(v.string()),
+    latencyMs: v.optional(v.number()),
+    inputTokens: v.optional(v.number()),
+    outputTokens: v.optional(v.number()),
+    estimatedCostUsd: v.optional(v.number()),
+    generationOutcome: v.optional(v.string()),
+    finishReason: v.optional(v.string()),
     tasksAcceptedAt: v.optional(v.string()),
     createdAt: v.string(),
   })
     .index("by_legacy_id", ["legacyId"])
     .index("by_conversation_time", ["conversationId", "createdAt"])
-    .index("by_user_time", ["userId", "createdAt"]),
+    .index("by_conversation_request", ["conversationId", "requestId"])
+    .index("by_reply_to", ["replyToMessageId"])
+    .index("by_user_time", ["userId", "createdAt"])
+    .index("by_user_generation", ["userId", "generationStatus"]),
 
   operatorTasks: defineTable({
     legacyId: v.string(),
     userId: v.string(),
-    conversationId: v.string(),
-    sourceMessageId: v.string(),
+    conversationId: v.optional(v.string()),
+    sourceMessageId: v.optional(v.string()),
+    originConversationTitle: v.optional(v.string()),
+    originMessageCreatedAt: v.optional(v.string()),
     goalId: v.string(),
     title: v.string(),
     note: v.string(),
@@ -99,9 +129,35 @@ export default defineSchema({
     completedAt: v.optional(v.string()),
   })
     .index("by_legacy_id", ["legacyId"])
+    .index("by_conversation", ["conversationId"])
     .index("by_goal_status", ["goalId", "status"])
     .index("by_user_date", ["userId", "scheduledFor"])
-    .index("by_user_status", ["userId", "status"]),
+    .index("by_user_status", ["userId", "status"])
+    .index("by_user_updated", ["userId", "updatedAt"]),
+
+  aiUsageWindows: defineTable({
+    key: v.string(),
+    windowStartedAt: v.number(),
+    count: v.number(),
+    updatedAt: v.string(),
+  }).index("by_key", ["key"]),
+
+  aiDailyUsage: defineTable({
+    userId: v.string(),
+    date: v.string(),
+    requests: v.number(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    estimatedCostUsd: v.optional(v.number()),
+    updatedAt: v.string(),
+  }).index("by_user_date", ["userId", "date"]),
+
+  aiProviderCircuit: defineTable({
+    key: v.string(),
+    consecutiveFailures: v.number(),
+    openedUntil: v.optional(v.string()),
+    updatedAt: v.string(),
+  }).index("by_key", ["key"]),
 
   subscriptions: defineTable({
     userId: v.string(),
@@ -120,6 +176,7 @@ export default defineSchema({
     updatedAt: v.string(),
   })
     .index("by_user", ["userId"])
+    .index("by_user_status", ["userId", "status"])
     .index("by_provider_subscription", ["providerSubscriptionId"]),
 
   billingCheckoutLocks: defineTable({
@@ -139,7 +196,9 @@ export default defineSchema({
     failureReason: v.optional(v.string()),
     createdAt: v.string(),
     processedAt: v.optional(v.string()),
-  }).index("by_provider_event", ["providerEventId"]),
+  })
+    .index("by_provider_event", ["providerEventId"])
+    .index("by_status_created", ["status", "createdAt"]),
 
   // Admin identity is deliberately not stored on user records. These tables
   // support abuse prevention and an immutable operational trail for the

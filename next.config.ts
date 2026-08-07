@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 
+import { assertEnvironment } from "./src/lib/env";
+
+if (process.env.GROWTHAI_VALIDATE_ENV === "1" || process.env.VERCEL_ENV === "production") {
+  assertEnvironment(process.env, { production: true });
+}
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Next 16's CLI type checker can lose captured output on Node 24.

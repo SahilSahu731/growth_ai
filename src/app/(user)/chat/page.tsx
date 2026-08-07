@@ -25,7 +25,8 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
     getOperatorWorkspace(session.user.id, conversation.id),
     getOperatorWeeklyActivity(session.user.id),
   ])
-  if (!workspace) redirect("/chat")
+  if (!workspace && params.conversation) redirect("/chat")
+  if (!workspace) throw new Error("Your workspace could not be loaded. Refresh once or sign in again.")
 
-  return <ChatExperience workspace={workspace} weeklyActivity={weeklyActivity} userName={session.user.name ?? "there"} />
+  return <ChatExperience key={workspace.conversation.id} workspace={workspace} weeklyActivity={weeklyActivity} userName={session.user.name ?? "there"} />
 }
