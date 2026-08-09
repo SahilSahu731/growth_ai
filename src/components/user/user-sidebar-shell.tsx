@@ -98,6 +98,7 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
     <UpgradeDialogProvider authenticated currentPlan={user.planTier}>
     <TooltipProvider delayDuration={120}>
       <SidebarProvider
+        className="app-dark"
         defaultOpen
         style={
           {

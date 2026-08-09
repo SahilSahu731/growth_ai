@@ -62,7 +62,8 @@ export default defineSchema({
     updatedAt: v.string(),
   })
     .index("by_legacy_id", ["legacyId"])
-    .index("by_user_updated", ["userId", "updatedAt"]),
+    .index("by_user_updated", ["userId", "updatedAt"])
+    .index("by_created", ["createdAt"]),
 
   operatorGoals: defineTable({
     legacyId: v.string(),
@@ -118,7 +119,8 @@ export default defineSchema({
     .index("by_conversation_request", ["conversationId", "requestId"])
     .index("by_reply_to", ["replyToMessageId"])
     .index("by_user_time", ["userId", "createdAt"])
-    .index("by_user_generation", ["userId", "generationStatus"]),
+    .index("by_user_generation", ["userId", "generationStatus"])
+    .index("by_created", ["createdAt"]),
 
   operatorTasks: defineTable({
     legacyId: v.string(),
@@ -216,7 +218,8 @@ export default defineSchema({
     createdAt: v.string(),
   })
     .index("by_user_created", ["userId", "createdAt"])
-    .index("by_name_created", ["name", "createdAt"]),
+    .index("by_name_created", ["name", "createdAt"])
+    .index("by_created", ["createdAt"]),
 
   aiUsageWindows: defineTable({
     key: v.string(),
@@ -274,7 +277,8 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_status", ["userId", "status"])
-    .index("by_provider_subscription", ["providerSubscriptionId"]),
+    .index("by_provider_subscription", ["providerSubscriptionId"])
+    .index("by_updated", ["updatedAt"]),
 
   billingCheckoutLocks: defineTable({
     userId: v.string(),
@@ -447,13 +451,59 @@ export default defineSchema({
     status: v.union(v.literal("queued"), v.literal("processing"), v.literal("completed"), v.literal("failed")),
     stage: v.string(),
     attempts: v.number(),
+    deletedRows: v.optional(v.number()),
+    lastHeartbeatAt: v.optional(v.string()),
+    nextRetryAt: v.optional(v.string()),
     createdAt: v.string(),
     updatedAt: v.string(),
     completedAt: v.optional(v.string()),
     errorCode: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
+    .index("by_legacy_id", ["legacyId"])
     .index("by_status_created", ["status", "createdAt"]),
+
+  accountExportJobs: defineTable({
+    legacyId: v.string(),
+    userId: v.string(),
+    tokenHash: v.string(),
+    status: v.union(v.literal("queued"), v.literal("processing"), v.literal("completed"), v.literal("failed"), v.literal("expired")),
+    stage: v.string(),
+    cursor: v.optional(v.string()),
+    attempts: v.number(),
+    rowCount: v.number(),
+    byteSize: v.number(),
+    chunkCount: v.number(),
+    expiresAt: v.string(),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    lastHeartbeatAt: v.optional(v.string()),
+    nextRetryAt: v.optional(v.string()),
+    completedAt: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+  })
+    .index("by_user_created", ["userId", "createdAt"])
+    .index("by_status_updated", ["status", "updatedAt"])
+    .index("by_legacy_id", ["legacyId"]),
+
+  accountExportChunks: defineTable({
+    jobId: v.string(),
+    userId: v.string(),
+    sequence: v.number(),
+    section: v.string(),
+    data: v.string(),
+    createdAt: v.string(),
+  })
+    .index("by_job_sequence", ["jobId", "sequence"])
+    .index("by_user", ["userId"]),
+
+  maintenanceCursors: defineTable({
+    key: v.string(),
+    cursor: v.optional(v.string()),
+    lastBatchSize: v.number(),
+    completedCycles: v.number(),
+    updatedAt: v.string(),
+  }).index("by_key", ["key"]),
 
   legalRetentionRecords: defineTable({
     subjectReference: v.string(),

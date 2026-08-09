@@ -1,0 +1,13 @@
+{
+  "name": "GrowthAI",
+  "short_name": "GrowthAI",
+  "description": "A grounded AI coach for turning one stuck priority into a clear next step.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "browser",
+  "background_color": "#fafafa",
+  "theme_color": "#080a0b",
+  "icons": [
+    { "src": "/favicon.png", "sizes": "500x500", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -15,6 +15,7 @@ Convex stores the core product and operational tables:
 - `adminLoginAttempts` and `adminAuditLogs` for admin abuse prevention and privileged-operation traceability; neither table grants identity or access
 - `aiUsageWindows`, `aiDailyUsage`, and `aiProviderCircuit` for bounded per-user/network generation, daily request/token/estimated-cost budgets, and automatic provider isolation after consecutive failures
 - `announcements` for prioritized and optionally scheduled top bars, floating banners, and popup notices with validated presentation settings managed through the admin workspace
+- `accountDeletionJobs`, `accountExportJobs`, and `accountExportChunks` for bounded, resumable privacy workflows with heartbeat, retry, progress, and expiry state
 
 Every task has a required `goalId`. Free accounts are limited to three active goals inside the database mutation, so the rule cannot be bypassed through the interface. Completing or archiving a goal dismisses its remaining open tasks in the same transaction.
 
@@ -34,8 +35,10 @@ Every task has a required `goalId`. Free accounts are limited to three active go
 - Goal limits, task duration limits, per-day task limits, ownership, and valid goal state are enforced in Convex.
 - AI receives only relevant conversation, goals, and open tasks rather than unrelated account data. User content is isolated from the system instruction and treated as untrusted.
 - Crisis/high-risk routing executes before any provider call. Model use has per-user/network limits, daily budgets, a timeout, an automatic global circuit breaker, and an emergency kill switch. Cost estimates use environment-configured current provider rates rather than hard-coded pricing.
-- Account export is versioned and includes account data, chats, goals, tasks, subscriptions, privacy/preference history, support access history, requests, policy, and export timestamp.
-- Account deletion is queued and observable. It removes active user data, writes irreversible identity tombstones to prevent automatic recreation, retains only minimal legally required billing records, and lets backups expire without restoring deleted accounts.
+- Account export is asynchronous, bounded, versioned, ownership-checked with a random download token, and expires after 24 hours.
+- Account deletion immediately tombstones account access, then deletes in idempotent bounded stages with progress, heartbeat, retries, and an audited recovery path. It retains only minimal legally required billing records and lets backups expire without restoring deleted accounts.
+- Public landing/pricing renders do not read member sessions. Personalization uses a private no-store account-state endpoint; public announcements use short shared caching and explicit invalidation.
+- The proxy propagates correlation IDs. `/health` is dependency-free liveness, `/api/ready` validates Convex without revealing configuration, and `/admin/operations` exposes bounded safe operational signals.
 - Seed and migration functions are internal and idempotent.
 - Paid entitlement changes only when a signed Razorpay event matches a subscription created by the server, its owner, and its exact configured provider plan ID. Browser-supplied amounts, plan IDs, subscription IDs, and entitlement state are never trusted.
 - Subscription cancellation checks the signed-in owner, changes Razorpay first, and leaves local entitlement unchanged until the provider webhook confirms the lifecycle change.

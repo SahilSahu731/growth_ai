@@ -9,7 +9,7 @@ export function goalLimitForPlan(planTier: string | undefined) {
 async function goalLimitState(ctx: any, userId: string, planTierOverride?: string) {
   const [user, activeGoals] = await Promise.all([
     ctx.db.query("users").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", userId)).unique(),
-    ctx.db.query("operatorGoals").withIndex("by_user_status", (q: any) => q.eq("userId", userId).eq("status", "active")).collect(),
+    ctx.db.query("operatorGoals").withIndex("by_user_status", (q: any) => q.eq("userId", userId).eq("status", "active")).take(100),
   ])
   if (!user) throw new Error("USER_NOT_FOUND: User not found")
   const entitlements = planTierOverride ? null : await resolveEntitlements(ctx, userId)

@@ -27,7 +27,7 @@ export const getOverview = query({
     await requireMember(ctx, userId, "account:read")
     const [user, conversations] = await Promise.all([
       userById(ctx, userId),
-      ctx.db.query("operatorConversations").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).order("desc").collect(),
+      ctx.db.query("operatorConversations").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).order("desc").take(100),
     ])
     if (!user) return null
     return {
@@ -52,6 +52,16 @@ export const getOverview = query({
         aiNoticeAcceptedVersion: user.aiNoticeAcceptedVersion ?? null,
       },
     }
+  },
+})
+
+export const getState = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    await requireMember(ctx, userId, "account:read")
+    const user = await userById(ctx, userId)
+    if (!user || user.deletedAt || (user.accountStatus && user.accountStatus !== "active")) return null
+    return { planTier: user.planTier }
   },
 })
 
@@ -113,14 +123,15 @@ export const exportUserData = query({
       collectOwnedRows(ctx, "weeklyReports", userId),
       collectOwnedRows(ctx, "growthMapItems", userId),
       collectOwnedRows(ctx, "messageFeedback", userId),
-      ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
+      ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).take(100),
       collectOwnedRows(ctx, "entitlementGrants", userId),
       collectOwnedRows(ctx, "productEvents", userId),
       collectOwnedRows(ctx, "emailDeliveries", userId),
-      ctx.db.query("privacyEvents").withIndex("by_user_created", (q: any) => q.eq("userId", userId)).collect(),
-      ctx.db.query("adminAuditLogs").withIndex("by_target_created", (q: any) => q.eq("targetId", userId)).collect(),
-      ctx.db.query("dataSubjectRequests").withIndex("by_user_created", (q: any) => q.eq("userId", userId)).collect(),
+      ctx.db.query("privacyEvents").withIndex("by_user_created", (q: any) => q.eq("userId", userId)).order("desc").take(500),
+      ctx.db.query("adminAuditLogs").withIndex("by_target_created", (q: any) => q.eq("targetId", userId)).order("desc").take(500),
+      ctx.db.query("dataSubjectRequests").withIndex("by_user_created", (q: any) => q.eq("userId", userId)).order("desc").take(100),
     ])
+    if ([conversations, messages, goals, tasks, taskEvents, weeklyReports, growthMap, messageFeedback, entitlementGrants, productEvents, emailDeliveries].some((rows) => rows.length > 5_000)) throw new Error("SYNCHRONOUS_EXPORT_RETIRED: Use the asynchronous account export endpoint")
     return {
       format: "growthai-portable-export",
       formatVersion: 2,
@@ -188,6 +199,7 @@ export const clearAiMemory = mutation({
     const messages = await collectOwnedRows(ctx, "operatorMessages", userId)
     const tasks = await collectOwnedRows(ctx, "operatorTasks", userId)
     const [feedback, reports, mapItems] = await Promise.all([collectOwnedRows(ctx, "messageFeedback", userId), collectOwnedRows(ctx, "weeklyReports", userId), collectOwnedRows(ctx, "growthMapItems", userId)])
+    if ([conversations, messages, tasks, feedback, reports, mapItems].some((rows) => rows.length > 5_000)) throw new Error("MEMORY_CLEAR_REQUIRES_SUPPORT: This account is too large for synchronous memory clearing")
     const conversationTitles = new Map(conversations.map((item: any) => [item.legacyId, item.title]))
     for (const task of tasks) {
       if (task.conversationId) await ctx.db.patch(task._id, { originConversationTitle: task.originConversationTitle ?? conversationTitles.get(task.conversationId), conversationId: undefined, sourceMessageId: undefined })
@@ -227,7 +239,7 @@ export const requestAccountDeletion = mutation({
     await requireMember(ctx, args.userId, "account:delete")
     const user = await userById(ctx, args.userId)
     if (!user || user.email.toLowerCase() !== args.confirmationEmail.trim().toLowerCase()) return null
-    const subscriptions = await ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).collect()
+    const subscriptions = await ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).take(100)
     const nowIso = new Date().toISOString()
     if (subscriptions.some((item: any) => ["created", "pending", "authenticated", "active"].includes(item.status) || item.entitlementState === "active" && (!item.accessUntil || item.accessUntil > nowIso) || item.entitlementState === "grace" && item.graceUntil > nowIso)) throw new Error("ACTIVE_SUBSCRIPTION")
     const existing = await ctx.db.query("accountDeletionJobs").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).unique()
@@ -235,8 +247,8 @@ export const requestAccountDeletion = mutation({
     const timestamp = new Date().toISOString()
     const jobId = existing?.legacyId ?? crypto.randomUUID()
     await ctx.db.patch(user._id, { accountStatus: "deletion_pending", updatedAt: timestamp })
-    if (existing) await ctx.db.patch(existing._id, { status: "queued", stage: "queued", updatedAt: timestamp, errorCode: undefined })
-    else await ctx.db.insert("accountDeletionJobs", { legacyId: jobId, userId: args.userId, status: "queued", stage: "queued", attempts: 0, createdAt: timestamp, updatedAt: timestamp })
+    if (existing) await ctx.db.patch(existing._id, { status: "queued", stage: "queued", attempts: 0, deletedRows: existing.deletedRows ?? 0, lastHeartbeatAt: timestamp, nextRetryAt: undefined, updatedAt: timestamp, errorCode: undefined })
+    else await ctx.db.insert("accountDeletionJobs", { legacyId: jobId, userId: args.userId, status: "queued", stage: "queued", attempts: 0, deletedRows: 0, lastHeartbeatAt: timestamp, createdAt: timestamp, updatedAt: timestamp })
     await ctx.scheduler.runAfter(0, processDeletion, { userId: args.userId, jobId })
     await enqueueEmail(ctx, { idempotencyKey: `deletion:${jobId}:queued`, userId: args.userId, toEmail: user.email, kind: "deletion_status", mandatory: true, variables: { detail: "Your account deletion request was verified and queued. Active access has been disabled while deletion is processed.", accountUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://growthai.app"}/privacy` } })
     return { id: jobId, status: "queued" as const }

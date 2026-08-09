@@ -36,7 +36,7 @@ export const getCurrent = query({
     const candidates = await ctx.db
       .query("announcements")
       .withIndex("by_active", (q: any) => q.eq("isActive", true))
-      .collect()
+      .take(100)
     const current = candidates
       .filter((item: any) => (!item.startsAt || item.startsAt <= now) && (!item.endsAt || item.endsAt > now))
       .sort((left: any, right: any) => right.priority - left.priority || right.updatedAt.localeCompare(left.updatedAt))[0]

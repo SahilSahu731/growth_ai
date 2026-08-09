@@ -57,7 +57,10 @@ export const receiveProviderEvent = mutation({
 export const queueWeeklySummaries = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const users = await ctx.db.query("users").take(500)
+    if (process.env.NOTIFICATIONS_ENABLED === "false") return { queued: 0, skipped: "disabled" }
+    const state = await ctx.db.query("maintenanceCursors").withIndex("by_key", (q: any) => q.eq("key", "weekly-summary")).unique()
+    const batch = await ctx.db.query("users").paginate({ cursor: state?.cursor ?? null, numItems: 100 })
+    const users = batch.page
     let queued = 0
     for (const user of users) {
       if (!user.emailNotifications || user.notificationFrequency !== "weekly" || user.deletedAt || (user.accountStatus && user.accountStatus !== "active")) continue
@@ -77,6 +80,9 @@ export const queueWeeklySummaries = internalMutation({
       await enqueueEmail(ctx, { idempotencyKey: `weekly:${user.legacyId}:${weekKey}`, userId: user.legacyId, toEmail: user.email, kind: "weekly_summary", mandatory: false, variables: { detail: `Your review records ${report.counts.completed} completed, ${report.counts.deferred} deferred, ${report.counts.dismissed} dismissed, and ${report.counts.overdue} overdue commitments. Open GrowthAI to review sources and correct interpretations.`, accountUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://growthai.app"}/weekly-report` } })
       queued += 1
     }
-    return { queued }
+    const timestamp = new Date().toISOString()
+    const fields = { cursor: batch.isDone ? undefined : batch.continueCursor, lastBatchSize: users.length, completedCycles: (state?.completedCycles ?? 0) + (batch.isDone ? 1 : 0), updatedAt: timestamp }
+    if (state) await ctx.db.patch(state._id, fields); else await ctx.db.insert("maintenanceCursors", { key: "weekly-summary", ...fields })
+    return { queued, cycleComplete: batch.isDone }
   },
 })

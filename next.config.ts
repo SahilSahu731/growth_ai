@@ -8,6 +8,7 @@ if (process.env.GROWTHAI_VALIDATE_ENV === "1" || process.env.VERCEL_ENV === "pro
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  allowedDevOrigins: ["127.0.0.1"],
   // Next 16's CLI type checker can lose captured output on Node 24.
   // The compiler API performs the same check without spawning that process.
   experimental: {

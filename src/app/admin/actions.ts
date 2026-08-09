@@ -27,6 +27,7 @@ import {
   updateAdminUser,
   grantAdminComplimentaryAccess,
   replayAdminBillingEvent,
+  retryAdminOperationJob,
   updateAdminAnnouncement,
 } from "@/lib/data/admin"
 import { ANNOUNCEMENT_PRESETS, type AnnouncementAlignment, type AnnouncementButtonStyle, type AnnouncementPlacement, type AnnouncementTone } from "@/lib/announcement-types"
@@ -297,6 +298,7 @@ export async function createAnnouncementAction(_state: AdminActionState, formDat
     const session = await requireAdmin("support-write")
     await createAdminAnnouncement({ actor: session.email, ...announcementInput(formData) })
     revalidatePath("/admin/announcements")
+    revalidatePath("/api/announcements")
     return { success: "Announcement created." }
   } catch (error) {
     return { error: safeMessage(error) }
@@ -310,6 +312,7 @@ export async function updateAnnouncementAction(_state: AdminActionState, formDat
     if (!announcementId) return { error: "Announcement not found" }
     await updateAdminAnnouncement({ actor: session.email, announcementId, ...announcementInput(formData) })
     revalidatePath("/admin/announcements")
+    revalidatePath("/api/announcements")
     return { success: "Announcement updated." }
   } catch (error) {
     return { error: safeMessage(error) }
@@ -323,8 +326,19 @@ export async function deleteAnnouncementAction(_state: AdminActionState, formDat
     if (!announcementId) return { error: "Announcement not found" }
     await deleteAdminAnnouncement({ actor: session.email, announcementId })
     revalidatePath("/admin/announcements")
+    revalidatePath("/api/announcements")
     return { success: "Announcement deleted." }
   } catch (error) {
     return { error: safeMessage(error) }
   }
+}
+
+export async function retryOperationAction(formData: FormData): Promise<void> {
+  const session = await requireFreshAdmin("owner")
+  const kind = text(formData, "kind")
+  const jobId = text(formData, "jobId")
+  const reason = text(formData, "reason")
+  if ((kind !== "deletion" && kind !== "export") || !jobId || reason.length < 10) throw new Error("A valid job and recovery reason are required.")
+  await retryAdminOperationJob({ actor: session.email, kind, jobId, reason })
+  revalidatePath("/admin/operations")
 }

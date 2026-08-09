@@ -13,7 +13,6 @@ import {
   Check,
   ChevronRight,
   CreditCard,
-  Download,
   HeartHandshake,
   LockKeyhole,
   Bell,
@@ -30,6 +29,7 @@ import {
 } from "@/app/(user)/settings/actions";
 import { UpgradeTrigger } from "@/components/billing/upgrade-dialog";
 import { DangerZone } from "@/components/growth/danger-zone";
+import { AccountExportControl } from "@/components/settings/account-export-control";
 import { PrivacyControls } from "@/components/settings/privacy-controls";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -708,16 +708,7 @@ function PrivacyPanel({
               from the last 15 minutes is required.
             </p>
           </div>
-          <Button
-            asChild
-            variant="outline"
-            className="min-h-11 rounded-lg px-4 text-sm font-medium"
-          >
-            <a href="/api/account/export">
-              <Download />
-              Export
-            </a>
-          </Button>
+          <AccountExportControl />
         </div>
       </Section>
       <Section

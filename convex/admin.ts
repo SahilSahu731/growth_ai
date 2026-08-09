@@ -1,16 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { mutationGeneric as mutation, queryGeneric as query } from "convex/server"
+import { makeFunctionReference, mutationGeneric as mutation, queryGeneric as query, type FunctionReference } from "convex/server"
 import { v } from "convex/values"
 
 import { requireScope } from "./lib/serverAuth"
 import { assertGoalCanBeActive } from "./lib/goalLimits"
 import { syncCachedPlan } from "./lib/entitlements"
-import { collectOwnedRows } from "./lib/ownedData"
+import { takeOwnedRows } from "./lib/ownedData"
 
 const announcementTone = v.union(v.literal("info"), v.literal("offer"), v.literal("warning"), v.literal("critical"))
 const announcementPlacement = v.union(v.literal("top_bar"), v.literal("floating_banner"), v.literal("popup"))
 const announcementAlignment = v.union(v.literal("left"), v.literal("center"))
 const announcementButtonStyle = v.union(v.literal("solid"), v.literal("outline"))
+const MAX_PLATFORM_SCAN = 5_000
+const MAX_MEMBER_DETAIL = 500
+const processDeletionRef = makeFunctionReference<"mutation", Record<string, never>, unknown>("privacy:processDeletion") as unknown as FunctionReference<"mutation", "internal", { userId: string; jobId: string }, unknown>
+const processExportRef = makeFunctionReference<"mutation", Record<string, never>, unknown>("exports:process") as unknown as FunctionReference<"mutation", "internal", { jobId: string }, unknown>
 
 function clean(document: any) {
   if (!document) return null
@@ -149,13 +153,13 @@ export const getDashboard = query({
   handler: async (ctx) => {
     await requireScope(ctx, "admin", "admin:read")
     const [users, conversations, messages, goals, tasks, subscriptions, billingEvents] = await Promise.all([
-      ctx.db.query("users").collect(),
-      ctx.db.query("operatorConversations").collect(),
-      ctx.db.query("operatorMessages").collect(),
-      ctx.db.query("operatorGoals").collect(),
-      ctx.db.query("operatorTasks").collect(),
-      ctx.db.query("subscriptions").collect(),
-      ctx.db.query("billingEvents").collect(),
+      ctx.db.query("users").withIndex("by_created").order("desc").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("operatorConversations").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("operatorMessages").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("operatorGoals").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("operatorTasks").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("subscriptions").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("billingEvents").withIndex("by_status_created").take(MAX_PLATFORM_SCAN),
     ])
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
     const activeSubscriptions = subscriptions.filter((item: any) => ["active", "authenticated", "charged"].includes(item.status))
@@ -194,26 +198,13 @@ export const listUsers = query({
     const search = args.search.trim().toLowerCase()
     const pageSize = Math.min(Math.max(Math.floor(args.pageSize), 1), 100)
     const page = Math.max(Math.floor(args.page), 1)
-    const all = await ctx.db.query("users").collect()
+    const all = await ctx.db.query("users").withIndex("by_created").order("desc").take(MAX_PLATFORM_SCAN)
     const filtered = all
       .filter((user: any) => !search || user.name.toLowerCase().includes(search) || user.email.toLowerCase().includes(search))
       .sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt))
     const start = (page - 1) * pageSize
     const items = filtered.slice(start, start + pageSize)
-    const enriched = await Promise.all(items.map(async (user: any) => {
-      const [goals, tasks, subscriptions] = await Promise.all([
-        collectOwnedRows(ctx, "operatorGoals", user.legacyId),
-        collectOwnedRows(ctx, "operatorTasks", user.legacyId),
-        ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", user.legacyId)).collect(),
-      ])
-      return {
-        ...clean(user),
-        activeGoals: goals.filter((goal: any) => goal.status === "active").length,
-        openTasks: tasks.filter((task: any) => task.status === "todo").length,
-        subscriptions: subscriptions.length,
-      }
-    }))
-    return { items: enriched, total: filtered.length, page, pageSize, pages: Math.max(1, Math.ceil(filtered.length / pageSize)) }
+    return { items: items.map(clean), total: filtered.length, page, pageSize, pages: Math.max(1, Math.ceil(filtered.length / pageSize)), truncated: all.length === MAX_PLATFORM_SCAN }
   },
 })
 
@@ -225,11 +216,11 @@ export const getUserDetail = mutation({
     const user = await userById(ctx, userId)
     if (!user) return null
     const [conversations, messages, goals, tasks, subscriptions] = await Promise.all([
-      collectOwnedRows(ctx, "operatorConversations", userId),
-      collectOwnedRows(ctx, "operatorMessages", userId),
-      collectOwnedRows(ctx, "operatorGoals", userId),
-      collectOwnedRows(ctx, "operatorTasks", userId),
-      ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
+      takeOwnedRows(ctx, "operatorConversations", userId, MAX_MEMBER_DETAIL),
+      takeOwnedRows(ctx, "operatorMessages", userId, MAX_MEMBER_DETAIL),
+      takeOwnedRows(ctx, "operatorGoals", userId, MAX_MEMBER_DETAIL),
+      takeOwnedRows(ctx, "operatorTasks", userId, MAX_MEMBER_DETAIL),
+      ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).take(MAX_MEMBER_DETAIL),
     ])
     const result = {
       user: clean(user),
@@ -332,7 +323,7 @@ export const setGoalStatus = mutation({
       completedAt: args.status === "completed" ? (goal.completedAt ?? timestamp) : undefined,
     })
     if (args.status !== "active") {
-      const tasks = await ctx.db.query("operatorTasks").withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId).eq("status", "todo")).collect()
+      const tasks = await ctx.db.query("operatorTasks").withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId).eq("status", "todo")).take(MAX_MEMBER_DETAIL)
       for (const task of tasks) await ctx.db.patch(task._id, { status: "dismissed", updatedAt: timestamp })
     }
     await writeAudit(ctx, {
@@ -380,7 +371,8 @@ export const deleteConversation = mutation({
     await requireScope(ctx, "admin", "admin:delete")
     const conversation = await ctx.db.query("operatorConversations").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.conversationId)).unique()
     if (!conversation || conversation.userId !== args.userId) throw new Error("Conversation not found")
-    const messages = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId)).collect()
+    const messages = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId)).take(MAX_MEMBER_DETAIL + 1)
+    if (messages.length > MAX_MEMBER_DETAIL) throw new Error("CONVERSATION_DELETE_REQUIRES_BACKGROUND_JOB")
     for (const message of messages) await ctx.db.delete(message._id)
     await ctx.db.delete(conversation._id)
     await writeAudit(ctx, {
@@ -402,21 +394,24 @@ export const deleteUser = mutation({
     if (!user || user.email.toLowerCase() !== args.confirmationEmail.trim().toLowerCase()) {
       throw new Error("Confirmation email does not match")
     }
-    const deleted: Record<string, number> = {}
-    for (const table of ["operatorMessages", "messageFeedback", "operatorTasks", "operatorTaskEvents", "weeklyReports", "growthMapItems", "productEvents", "operatorGoals", "operatorConversations", "entitlementGrants", "subscriptions", "billingCheckoutLocks", "emailDeliveries", "aiDailyUsage", "privacyEvents", "dataSubjectRequests", "accountDeletionJobs"] as const) {
-      const rows = await collectOwnedRows(ctx, table, args.userId)
-      deleted[table] = rows.length
-      for (const row of rows) await ctx.db.delete(row._id)
-    }
-    // Preserve the audit trail independently from the deleted user record.
+    const subscriptions = await ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).take(100)
+    const nowIso = new Date().toISOString()
+    if (subscriptions.some((item: any) => ["created", "pending", "authenticated", "active"].includes(item.status) || item.entitlementState === "active" && (!item.accessUntil || item.accessUntil > nowIso) || item.entitlementState === "grace" && item.graceUntil > nowIso)) throw new Error("ACTIVE_SUBSCRIPTION")
+    const existing = await ctx.db.query("accountDeletionJobs").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).unique()
+    const jobId = existing?.legacyId ?? crypto.randomUUID()
+    await ctx.db.patch(user._id, { accountStatus: "deletion_pending", updatedAt: nowIso })
+    if (existing) await ctx.db.patch(existing._id, { status: "queued", stage: "queued", attempts: 0, lastHeartbeatAt: nowIso, nextRetryAt: undefined, errorCode: undefined, updatedAt: nowIso })
+    else await ctx.db.insert("accountDeletionJobs", { legacyId: jobId, userId: args.userId, status: "queued", stage: "queued", attempts: 0, deletedRows: 0, lastHeartbeatAt: nowIso, createdAt: nowIso, updatedAt: nowIso })
+    await ctx.scheduler.runAfter(0, processDeletionRef, { userId: args.userId, jobId })
     await writeAudit(ctx, {
       actor: args.actor,
-      action: "user.delete",
-      targetType: "user",
+      actorRole: "owner",
+      action: "user.deletion_queued",
+      targetType: "account_deletion_job",
       targetId: args.userId,
-      summary: `Permanently deleted ${user.email} and owned product data (${JSON.stringify(deleted)}).`,
+      result: "queued",
+      summary: `Tombstoned access and queued bounded deletion for ${user.email}. Job ${jobId}.`,
     })
-    await ctx.db.delete(user._id)
     return true
   },
 })
@@ -428,11 +423,11 @@ export const getBilling = query({
     const page = Math.max(1, Math.floor(args.page))
     const pageSize = Math.min(100, Math.max(1, Math.floor(args.pageSize)))
     const [subscriptions, events, users, grants, alerts] = await Promise.all([
-      ctx.db.query("subscriptions").collect(),
-      ctx.db.query("billingEvents").collect(),
-      ctx.db.query("users").collect(),
-      ctx.db.query("entitlementGrants").collect(),
-      ctx.db.query("billingAlerts").collect(),
+      ctx.db.query("subscriptions").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("billingEvents").withIndex("by_status_created").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("users").withIndex("by_created").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("entitlementGrants").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("billingAlerts").withIndex("by_status_created").take(MAX_PLATFORM_SCAN),
     ])
     const userMap = new Map(users.map((user: any) => [user.legacyId, { name: user.name, email: user.email }]))
     const sorted = events.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt))
@@ -456,10 +451,10 @@ export const getProductAnalytics = query({
     const days = Math.min(90, Math.max(7, Math.floor(args.days)))
     const since = new Date(Date.now() - days * 86_400_000).toISOString()
     const [events, messages, usage, subscriptions] = await Promise.all([
-      ctx.db.query("productEvents").collect(),
-      ctx.db.query("operatorMessages").collect(),
-      ctx.db.query("aiDailyUsage").collect(),
-      ctx.db.query("subscriptions").collect(),
+      ctx.db.query("productEvents").withIndex("by_created").order("desc").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("operatorMessages").withIndex("by_created").order("desc").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("aiDailyUsage").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("subscriptions").take(MAX_PLATFORM_SCAN),
     ])
     const currentEvents = events.filter((item: any) => item.createdAt >= since)
     const counts = Object.fromEntries(["conversation_started", "evidence_gathered", "plan_proposed", "task_accepted", "task_completed", "task_deferred", "report_viewed", "upgrade_viewed", "checkout_started", "subscription_activated", "onboarding_completed", "feedback_submitted"].map((name) => [name, currentEvents.filter((item: any) => item.name === name).length]))
@@ -490,9 +485,9 @@ export const getActivity = mutation({
     const page = Math.max(1, Math.floor(args.page))
     const pageSize = Math.min(100, Math.max(1, Math.floor(args.pageSize)))
     const [messages, conversations, users] = await Promise.all([
-      ctx.db.query("operatorMessages").collect(),
-      ctx.db.query("operatorConversations").collect(),
-      ctx.db.query("users").collect(),
+      ctx.db.query("operatorMessages").withIndex("by_created").order("desc").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("operatorConversations").withIndex("by_created").order("desc").take(MAX_PLATFORM_SCAN),
+      ctx.db.query("users").withIndex("by_created").order("desc").take(MAX_PLATFORM_SCAN),
     ])
     const userMap = new Map(users.map((user: any) => [user.legacyId, { id: user.legacyId, name: user.name, email: user.email }]))
     const conversationMap = new Map(conversations.map((item: any) => [item.legacyId, item.title]))
@@ -520,7 +515,7 @@ export const getAuditLogs = query({
     await requireScope(ctx, "admin", "admin:audit-read")
     const page = Math.max(1, Math.floor(args.page))
     const pageSize = Math.min(100, Math.max(1, Math.floor(args.pageSize)))
-    const logs = await ctx.db.query("adminAuditLogs").withIndex("by_created_at").order("desc").collect()
+    const logs = await ctx.db.query("adminAuditLogs").withIndex("by_created_at").order("desc").take(MAX_PLATFORM_SCAN)
     const start = (page - 1) * pageSize
     return {
       items: logs.slice(start, start + pageSize).map(clean),
@@ -603,7 +598,7 @@ export const listAnnouncements = query({
   args: {},
   handler: async (ctx) => {
     await requireScope(ctx, "admin", "admin:read")
-    const rows = await ctx.db.query("announcements").collect()
+    const rows = await ctx.db.query("announcements").take(500)
     return rows.sort((left: any, right: any) => right.priority - left.priority || right.updatedAt.localeCompare(left.updatedAt)).map(clean)
   },
 })
@@ -665,6 +660,61 @@ export const deleteAnnouncement = mutation({
       actor: args.actor, action: "announcement.delete", targetType: "announcement", targetId: args.announcementId,
       summary: `Deleted announcement “${row.message}”.`,
     })
+    return true
+  },
+})
+
+export const getOperations = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireScope(ctx, "admin", "admin:read")
+    const [billingFailed, billingDead, billingAlerts, emailFailed, emailDead, deletionFailed, deletionProcessing, exportFailed, exportProcessing, circuits, loginAttempts] = await Promise.all([
+      ctx.db.query("billingEvents").withIndex("by_status_created", (q: any) => q.eq("status", "failed")).order("desc").take(50),
+      ctx.db.query("billingEvents").withIndex("by_status_created", (q: any) => q.eq("status", "dead_letter")).order("desc").take(50),
+      ctx.db.query("billingAlerts").withIndex("by_status_created", (q: any) => q.eq("status", "open")).order("desc").take(50),
+      ctx.db.query("emailDeliveries").withIndex("by_status_retry", (q: any) => q.eq("status", "failed")).take(50),
+      ctx.db.query("emailDeliveries").withIndex("by_status_retry", (q: any) => q.eq("status", "dead_letter")).take(50),
+      ctx.db.query("accountDeletionJobs").withIndex("by_status_created", (q: any) => q.eq("status", "failed")).order("desc").take(50),
+      ctx.db.query("accountDeletionJobs").withIndex("by_status_created", (q: any) => q.eq("status", "processing")).order("desc").take(50),
+      ctx.db.query("accountExportJobs").withIndex("by_status_updated", (q: any) => q.eq("status", "failed")).order("desc").take(50),
+      ctx.db.query("accountExportJobs").withIndex("by_status_updated", (q: any) => q.eq("status", "processing")).order("desc").take(50),
+      ctx.db.query("aiProviderCircuit").take(20),
+      ctx.db.query("adminLoginAttempts").take(100),
+    ])
+    const now = Date.now()
+    const stale = (value: string | undefined) => Boolean(value && Date.parse(value) < now - 15 * 60 * 1000)
+    return {
+      generatedAt: new Date(now).toISOString(),
+      billing: { failed: billingFailed.length, deadLetter: billingDead.length, openAlerts: billingAlerts.length, criticalAlerts: billingAlerts.filter((row: any) => row.severity === "critical").length },
+      email: { failed: emailFailed.length, deadLetter: emailDead.length },
+      deletion: { failed: deletionFailed.length, processing: deletionProcessing.length, stale: deletionProcessing.filter((row: any) => stale(row.lastHeartbeatAt ?? row.updatedAt)).length },
+      exports: { failed: exportFailed.length, processing: exportProcessing.length, stale: exportProcessing.filter((row: any) => stale(row.lastHeartbeatAt ?? row.updatedAt)).length },
+      ai: { openCircuits: circuits.filter((row: any) => row.openedUntil && Date.parse(row.openedUntil) > now).length, circuits: circuits.map((row: any) => ({ key: row.key, consecutiveFailures: row.consecutiveFailures, openedUntil: row.openedUntil ?? null, updatedAt: row.updatedAt })) },
+      security: { blockedAdminKeys: loginAttempts.filter((row: any) => row.blockedUntil && Date.parse(row.blockedUntil) > now).length },
+      jobs: [
+        ...deletionFailed.map((row: any) => ({ kind: "deletion", id: row.legacyId, status: row.status, stage: row.stage, attempts: row.attempts, errorCode: row.errorCode ?? null, updatedAt: row.updatedAt })),
+        ...exportFailed.map((row: any) => ({ kind: "export", id: row.legacyId, status: row.status, stage: row.stage, attempts: row.attempts, errorCode: row.errorCode ?? null, updatedAt: row.updatedAt })),
+      ].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 50),
+    }
+  },
+})
+
+export const retryOperationJob = mutation({
+  args: { actor: v.string(), kind: v.union(v.literal("deletion"), v.literal("export")), jobId: v.string(), reason: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "admin", "admin:write")
+    const reason = args.reason.replace(/\s+/g, " ").trim()
+    if (reason.length < 10) throw new Error("A recovery reason of at least 10 characters is required")
+    if (args.kind === "deletion") {
+      const job = await ctx.db.query("accountDeletionJobs").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.jobId)).unique()
+      if (!job || job.status !== "failed") throw new Error("Failed operation job not found")
+      await ctx.scheduler.runAfter(0, processDeletionRef, { userId: job.userId, jobId: job.legacyId })
+    } else {
+      const job = await ctx.db.query("accountExportJobs").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.jobId)).unique()
+      if (!job || job.status !== "failed") throw new Error("Failed operation job not found")
+      await ctx.scheduler.runAfter(0, processExportRef, { jobId: job.legacyId })
+    }
+    await writeAudit(ctx, { actor: args.actor, action: "operation.retry", targetType: `${args.kind}_job`, targetId: args.jobId, reason, result: "queued", summary: `Queued a failed ${args.kind} job for bounded recovery.` })
     return true
   },
 })

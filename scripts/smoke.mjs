@@ -1,0 +1,3 @@
+const base = new URL(process.env.SMOKE_BASE_URL ?? "http://127.0.0.1:3000")
+const checks = [{ path: "/health", statuses: [200] }, { path: "/api/ready", statuses: [200] }, { path: "/", statuses: [200] }, { path: "/pricing", statuses: [200] }, { path: "/robots.txt", statuses: [200] }, { path: "/sitemap.xml", statuses: [200] }]
+for (const check of checks) { const response = await fetch(new URL(check.path, base), { redirect: "manual", signal: AbortSignal.timeout(10_000) }); if (!check.statuses.includes(response.status)) throw new Error(`${check.path} returned ${response.status}`); console.log(`${check.path} ${response.status}`) }

@@ -586,6 +586,8 @@ Production-only evidence and exact owner steps are tracked in `docs/EXTERNAL_COM
 
 # G5 — Performance, scale, reliability, and organizational maturity
 
+Implementation status and the external evidence still required are tracked in [`docs/G5_READINESS.md`](./docs/G5_READINESS.md). Checkboxes remain open until the definition of done is evidenced; repository code alone does not complete provider selection, on-call ownership, incident exercises, manual accessibility/mobile testing, restoration, indexing, or customer validation.
+
 ## 5.1 Remove full-table and N+1 data access
 
 - [ ] Replace admin user, content, activity, billing, audit, and search `.collect()` flows with indexed pagination.

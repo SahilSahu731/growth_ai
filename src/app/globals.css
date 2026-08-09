@@ -43,6 +43,13 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-text-subtle: var(--text-subtle);
+  --color-status-danger: var(--status-danger);
+  --color-status-warning: var(--status-warning);
+  --color-status-success: var(--status-success);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -96,6 +103,13 @@
   --landing-muted: #a3a3a3;
   --landing-accent: #72e7ff;
   --landing-accent-soft: #181818;
+  --canvas: #080808;
+  --surface: #111111;
+  --surface-elevated: #181818;
+  --text-subtle: #a3a3a3;
+  --status-danger: #ef4444;
+  --status-warning: #fbbf24;
+  --status-success: #34d399;
 }
 
 .font-display { font-family: var(--font-display); }
@@ -140,22 +154,29 @@
 .auth-snapshot { position: relative; transition: border-color 300ms ease, transform 300ms ease, box-shadow 300ms ease; }
 .auth-snapshot::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 14% 0%, rgba(114,231,255,.075), transparent 30%); }
 .auth-snapshot:hover { transform: translateY(-3px); border-color: rgba(114,231,255,.2); box-shadow: 0 28px 80px rgba(0,0,0,.46), 0 0 0 1px rgba(114,231,255,.035); }
-/* Legacy neutral utilities are intentionally remapped while the product moves to
-   semantic color tokens. This keeps every existing authenticated screen dark. */
-.bg-white, [class~="bg-white/92"], [class~="bg-white/90"], [class~="bg-white/85"], [class~="bg-white/84"], [class~="bg-white/80"], [class~="bg-white/70"], [class~="bg-white/60"] { background-color: #111111; }
-[class~="bg-[#fafafa]"] { background-color: #080808; }
-.bg-neutral-50, [class~="bg-neutral-50/70"], [class~="bg-neutral-50/60"], [class~="bg-neutral-50/50"] { background-color: #141414; }
-.bg-neutral-100, [class~="bg-neutral-100/70"], [class~="bg-neutral-100/60"] { background-color: #181818; }
-.bg-neutral-200, [class~="bg-neutral-200/30"], [class~="bg-neutral-200/25"] { background-color: #242424; }
-.bg-neutral-800 { background-color: #e5e5e5; color: #111111; }
-.bg-neutral-900, .bg-neutral-950 { background-color: #f5f5f5; color: #0a0a0a; }
-.text-neutral-950, .text-neutral-900, .text-neutral-800 { color: #f5f5f5; }
-.text-neutral-700, .text-neutral-600 { color: #d4d4d4; }
-.text-neutral-500 { color: #a3a3a3; }
-.text-neutral-400 { color: #929292; }
-.border-neutral-100, .border-neutral-200, [class~="border-neutral-200/80"] { border-color: #292929; }
-.border-neutral-300 { border-color: #3f3f3f; }
-.border-neutral-900, .border-neutral-950 { border-color: #e5e5e5; }
+/* The authenticated workspace is intentionally dark-only. Legacy neutral
+   utilities are scoped here while components migrate to semantic tokens. */
+.app-dark { color-scheme: dark; background: var(--canvas); color: var(--foreground); }
+.app-dark .bg-white, .app-dark [class~="bg-white/92"], .app-dark [class~="bg-white/90"], .app-dark [class~="bg-white/85"], .app-dark [class~="bg-white/84"], .app-dark [class~="bg-white/80"], .app-dark [class~="bg-white/70"], .app-dark [class~="bg-white/60"] { background-color: var(--surface); }
+.app-dark [class~="bg-[#fafafa]"] { background-color: var(--canvas); }
+.app-dark .bg-neutral-50, .app-dark [class~="bg-neutral-50/70"], .app-dark [class~="bg-neutral-50/60"], .app-dark [class~="bg-neutral-50/50"] { background-color: #141414; }
+.app-dark .bg-neutral-100, .app-dark [class~="bg-neutral-100/70"], .app-dark [class~="bg-neutral-100/60"] { background-color: var(--surface-elevated); }
+.app-dark .bg-neutral-200, .app-dark [class~="bg-neutral-200/30"], .app-dark [class~="bg-neutral-200/25"] { background-color: #242424; }
+.app-dark .bg-neutral-800 { background-color: #e5e5e5; color: #111111; }
+.app-dark .bg-neutral-900, .app-dark .bg-neutral-950 { background-color: #f5f5f5; color: #0a0a0a; }
+.app-dark .text-neutral-950, .app-dark .text-neutral-900, .app-dark .text-neutral-800 { color: #f5f5f5; }
+.app-dark .text-neutral-700, .app-dark .text-neutral-600 { color: #d4d4d4; }
+.app-dark .text-neutral-500 { color: var(--text-subtle); }
+.app-dark .text-neutral-400 { color: #929292; }
+.app-dark .border-neutral-100, .app-dark .border-neutral-200, .app-dark [class~="border-neutral-200/80"] { border-color: var(--border); }
+.app-dark .border-neutral-300 { border-color: #3f3f3f; }
+.app-dark .border-neutral-900, .app-dark .border-neutral-950 { border-color: #e5e5e5; }
+
+/* Public pages support a true light canvas with an accessible, darker accent.
+   Authenticated screens remain dark-only through .app-dark above. */
+[class~="bg-[#fafafa]"] { --primary: #176b78; --primary-foreground: #ffffff; --ring: #176b78; color-scheme: light; }
+[class~="bg-[#fafafa]"] .text-neutral-300, [class~="bg-[#fafafa]"] .text-neutral-400 { color: #666666; }
+[class~="bg-[#fafafa]"] .text-neutral-500 { color: #626262; }
 
 @layer base {
   * { @apply border-border outline-ring/50; }

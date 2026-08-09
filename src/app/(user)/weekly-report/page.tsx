@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic"
 export const metadata = { title: "Weekly review" }
 
 export default async function WeeklyReportPage() {
+  if (process.env.MAJOR_EXPERIENCES_ENABLED === "false") redirect("/chat")
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) redirect("/login")
   const conversation = await ensureOperatorConversation(session.user.id)

@@ -13,6 +13,7 @@ const environmentSchema = z.object({
   NEXTAUTH_URL: optionalString,
   AUTH_SECRET: optionalString,
   ENABLE_HSTS: optionalString,
+  ANNOUNCEMENTS_ENABLED: optionalString,
   LEGAL_ENTITY_NAME: optionalString,
   LEGAL_JURISDICTION: optionalString,
   LEGAL_CONTACT_ADDRESS: optionalString,
@@ -47,6 +48,8 @@ const environmentSchema = z.object({
   GEMINI_API_KEY: optionalString,
   GEMINI_MODEL: optionalString,
   GEMINI_DISABLED: optionalString,
+  NOTIFICATIONS_ENABLED: optionalString,
+  MAJOR_EXPERIENCES_ENABLED: optionalString,
   GEMINI_INPUT_COST_PER_MILLION_USD: optionalString,
   GEMINI_OUTPUT_COST_PER_MILLION_USD: optionalString,
   RAZORPAY_KEY_ID: optionalString,
@@ -172,6 +175,9 @@ export function validateEnvironment(
     errors.push("GOOGLE_CLIENT_ID is not a valid Google Web application client ID.")
   }
   if (environment.ENABLE_HSTS && !["0", "1"].includes(environment.ENABLE_HSTS)) errors.push("ENABLE_HSTS must be 0 or 1.")
+  for (const name of ["ANNOUNCEMENTS_ENABLED", "NOTIFICATIONS_ENABLED", "MAJOR_EXPERIENCES_ENABLED"] as const) {
+    if (environment[name] && !["true", "false"].includes(environment[name])) errors.push(`${name} must be true or false.`)
+  }
   if (environment.TRUSTED_PROXY_HOPS && (!Number.isInteger(Number(environment.TRUSTED_PROXY_HOPS)) || Number(environment.TRUSTED_PROXY_HOPS) < 0 || Number(environment.TRUSTED_PROXY_HOPS) > 5)) errors.push("TRUSTED_PROXY_HOPS must be an integer from 0 through 5.")
 
   const legacyAdminValues = [environment.ADMIN_EMAIL, environment.ADMIN_PASSWORD_HASH, environment.ADMIN_TOTP_SECRET, environment.ADMIN_ROLES]

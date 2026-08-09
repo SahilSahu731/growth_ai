@@ -102,7 +102,7 @@ async function goalForUser(ctx: any, goalId: string, userId: string) {
 }
 
 async function activeGoalsForUser(ctx: any, userId: string) {
-  return ctx.db.query("operatorGoals").withIndex("by_user_status", (q: any) => q.eq("userId", userId).eq("status", "active")).collect()
+  return ctx.db.query("operatorGoals").withIndex("by_user_status", (q: any) => q.eq("userId", userId).eq("status", "active")).take(100)
 }
 
 async function activeGenerationForUser(ctx: any, userId: string, excludeMessageId?: string) {
@@ -110,7 +110,7 @@ async function activeGenerationForUser(ctx: any, userId: string, excludeMessageI
   const pending = await ctx.db
     .query("operatorMessages")
     .withIndex("by_user_generation", (q: any) => q.eq("userId", userId).eq("generationStatus", "pending"))
-    .collect()
+    .take(10)
   return pending.find((message: any) => message.legacyId !== excludeMessageId && message.generationLeaseExpiresAt > timestamp)
 }
 
@@ -180,8 +180,8 @@ export const getWorkspace = query({
       ctx.db
         .query("operatorTasks")
         .withIndex("by_user_status", (q: any) => q.eq("userId", args.userId).eq("status", "todo"))
-        .collect(),
-      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect(),
+        .take(1000),
+      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).take(100),
       userForId(ctx, args.userId),
       ctx.db.query("aiProviderCircuit").withIndex("by_key", (q: any) => q.eq("key", "gemini")).unique(),
       resolveEntitlements(ctx, args.userId),
@@ -227,12 +227,27 @@ export const getTasks = query({
   handler: async (ctx, { userId }) => {
     await requireMember(ctx, userId, "operator:member")
     const [tasks, goals, user] = await Promise.all([
-      ctx.db.query("operatorTasks").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).collect(),
-      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).collect(),
+      ctx.db.query("operatorTasks").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).order("desc").take(1_000),
+      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).order("desc").take(100),
       userForId(ctx, userId),
     ])
     if (!user) return null
     return { tasks: tasks.sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map(clean), goals: goals.map(clean), timezone: user.timezone ?? "UTC", locale: user.locale ?? "en" }
+  },
+})
+
+export const getWeeklyActivity = query({
+  args: { userId: v.string(), since: v.string() },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    if (Number.isNaN(Date.parse(args.since))) throw new Error("INVALID_ACTIVITY_WINDOW")
+    const [messages, openTasks, activeGoals] = await Promise.all([
+      ctx.db.query("operatorMessages").withIndex("by_user_time", (q: any) => q.eq("userId", args.userId).gte("createdAt", args.since)).take(500),
+      ctx.db.query("operatorTasks").withIndex("by_user_status", (q: any) => q.eq("userId", args.userId).eq("status", "todo")).take(500),
+      ctx.db.query("operatorGoals").withIndex("by_user_status", (q: any) => q.eq("userId", args.userId).eq("status", "active")).take(100),
+    ])
+    const conversationTurns = messages.filter((item: any) => item.role === "user").length
+    return { since: args.since, conversationTurns, openTasks: openTasks.length, activeGoals: activeGoals.length, enoughData: conversationTurns >= 3, bounded: messages.length === 500 || openTasks.length === 500 || activeGoals.length === 100 }
   },
 })
 
@@ -248,10 +263,10 @@ export const ensureWeeklyReport = mutation({
       return clean(existing)
     }
     const [taskEvents, tasks, messages, goals] = await Promise.all([
-      ctx.db.query("operatorTaskEvents").withIndex("by_user_created", (q: any) => q.eq("userId", args.userId)).collect(),
-      ctx.db.query("operatorTasks").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect(),
-      ctx.db.query("operatorMessages").withIndex("by_user_time", (q: any) => q.eq("userId", args.userId)).collect(),
-      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect(),
+      ctx.db.query("operatorTaskEvents").withIndex("by_user_created", (q: any) => q.eq("userId", args.userId)).order("desc").take(2000),
+      ctx.db.query("operatorTasks").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).take(1000),
+      ctx.db.query("operatorMessages").withIndex("by_user_time", (q: any) => q.eq("userId", args.userId)).order("desc").take(2000),
+      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).take(100),
     ])
     const countWindow = (from: string, to: string) => {
       const events = taskEvents.filter((item: any) => item.createdAt >= from && item.createdAt < to)
@@ -322,7 +337,7 @@ export const getGoal = query({
     await requireMember(ctx, args.userId, "operator:member")
     const goal = await goalForUser(ctx, args.goalId, args.userId)
     if (!goal) return null
-    const tasks = await ctx.db.query("operatorTasks").withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId)).collect()
+    const tasks = await ctx.db.query("operatorTasks").withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId)).take(1000)
     return { goal: clean(goal), tasks: tasks.filter((task: any) => task.userId === args.userId).sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map(clean) }
   },
 })
@@ -370,8 +385,9 @@ export const deleteConversation = mutation({
     await requireMember(ctx, args.userId, "operator:member")
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) return false
-    const messages = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId)).collect()
-    const tasks = await ctx.db.query("operatorTasks").withIndex("by_conversation", (q: any) => q.eq("conversationId", args.conversationId)).collect()
+    const messages = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId)).take(501)
+    const tasks = await ctx.db.query("operatorTasks").withIndex("by_conversation", (q: any) => q.eq("conversationId", args.conversationId)).take(501)
+    if (messages.length > 500 || tasks.length > 500) throw new Error("CONVERSATION_TOO_LARGE: Contact support to delete this conversation safely")
     const messageCreatedAt = new Map(messages.map((message: any) => [message.legacyId, message.createdAt]))
     for (const task of tasks) {
       await ctx.db.patch(task._id, {
@@ -397,7 +413,7 @@ export const createGoal = mutation({
     const [user, activeGoals, allGoals, entitlements] = await Promise.all([
       userForId(ctx, args.userId),
       activeGoalsForUser(ctx, args.userId),
-      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect(),
+      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).take(100),
       resolveEntitlements(ctx, args.userId),
     ])
     if (!user) throw new Error("USER_NOT_FOUND: User not found")
@@ -424,7 +440,7 @@ export const updateGoal = mutation({
     if (!goal) throw new Error("GOAL_NOT_FOUND: Goal not found")
     const title = normalizeGoalTitle(args.title)
     if (title.length < 3) throw new Error("INVALID_GOAL_TITLE: Goal title must be at least 3 characters")
-    const allGoals = await ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect()
+    const allGoals = await ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).take(100)
     const duplicate = allGoals.find((item: any) => item.legacyId !== args.goalId && normalizedTitleKey(item.title) === normalizedTitleKey(title))
     if (duplicate) throw new Error("DUPLICATE_GOAL: Another goal already uses that title")
     if (args.status === "active") await assertGoalCanBeActive(ctx, { userId: args.userId, goalId: args.goalId })
@@ -437,7 +453,7 @@ export const updateGoal = mutation({
       completedAt: args.status === "completed" ? (goal.completedAt ?? timestamp) : undefined,
     })
     if (args.status !== "active") {
-      const openTasks = await ctx.db.query("operatorTasks").withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId).eq("status", "todo")).collect()
+      const openTasks = await ctx.db.query("operatorTasks").withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId).eq("status", "todo")).take(1000)
       await Promise.all(openTasks.map((task: any) => ctx.db.patch(task._id, { status: "dismissed", updatedAt: timestamp })))
     }
     return clean(await ctx.db.get(goal._id))
@@ -453,7 +469,7 @@ export const deleteGoal = mutation({
     const tasks = await ctx.db
       .query("operatorTasks")
       .withIndex("by_goal_status", (q: any) => q.eq("goalId", args.goalId))
-      .collect()
+      .take(1)
     if (tasks.length) throw new Error("GOAL_HAS_TASKS: Archive goals that have task history instead of deleting them")
     await ctx.db.delete(goal._id)
     return true
@@ -729,7 +745,7 @@ export const acceptTasks = mutation({
         const existing = await ctx.db
           .query("operatorTasks")
           .withIndex("by_user_date", (q: any) => q.eq("userId", args.userId).eq("scheduledFor", draft.scheduledFor))
-          .collect()
+          .take(4)
         existingCount = existing.filter((task: any) => task.status !== "dismissed").length
       }
       if (existingCount >= 3) continue
@@ -763,7 +779,7 @@ export const acceptTasks = mutation({
         const existing = await ctx.db
           .query("operatorTasks")
           .withIndex("by_user_date", (q: any) => q.eq("userId", args.userId).eq("scheduledFor", draft.scheduledFor))
-          .collect()
+          .take(4)
         existingCount = existing.filter((task: any) => task.status !== "dismissed").length
       }
       const taskLegacyId = id()
@@ -852,7 +868,7 @@ export const updateTask = mutation({
     if (title.length < 3) throw new Error("INVALID_TASK_TITLE: Task title must be at least 3 characters")
     if (completionCondition.length < 3) throw new Error("INVALID_COMPLETION_CONDITION: Add a clear completion condition")
     if (!isRealDateOnly(args.scheduledFor)) throw new Error("INVALID_DATE: Choose a valid date")
-    const tasksOnDate = await ctx.db.query("operatorTasks").withIndex("by_user_date", (q: any) => q.eq("userId", args.userId).eq("scheduledFor", args.scheduledFor)).collect()
+    const tasksOnDate = await ctx.db.query("operatorTasks").withIndex("by_user_date", (q: any) => q.eq("userId", args.userId).eq("scheduledFor", args.scheduledFor)).take(4)
     const occupied = tasksOnDate.filter((item: any) => item.legacyId !== args.taskId && item.status !== "dismissed").length
     if (occupied >= 3) throw new Error("DAILY_TASK_LIMIT_REACHED: That day already has 3 tasks. Choose another day.")
     const timestamp = now()

@@ -57,6 +57,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - run: npm run build
+      - name: Enforce static asset and JavaScript budgets
+        run: npm run performance:budget
 
   e2e:
     runs-on: ubuntu-latest

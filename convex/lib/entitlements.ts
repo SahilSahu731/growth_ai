@@ -17,8 +17,8 @@ function liveGrant(grant: any, nowIso: string) {
 export async function resolveEntitlements(ctx: any, userId: string, at = new Date()) {
   const nowIso = at.toISOString()
   const [subscriptions, grants] = await Promise.all([
-    ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
-    ctx.db.query("entitlementGrants").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
+    ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).take(100),
+    ctx.db.query("entitlementGrants").withIndex("by_user", (q: any) => q.eq("userId", userId)).take(100),
   ])
   const paid = subscriptions.filter((item: any) => liveSubscription(item, nowIso))
   const complimentary = grants.filter((item: any) => liveGrant(item, nowIso))

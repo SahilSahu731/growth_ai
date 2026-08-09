@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next"
+import { publicAppUrl } from "@/lib/public-url"
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.startsWith("http") ? process.env.NEXT_PUBLIC_APP_URL : "https://growthai.app"
+  const baseUrl = publicAppUrl()
   return [
     { url: baseUrl, changeFrequency: "weekly", priority: 1 },
     { url: `${baseUrl}/pricing`, changeFrequency: "monthly", priority: 0.7 },

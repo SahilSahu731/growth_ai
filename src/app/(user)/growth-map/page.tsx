@@ -30,6 +30,7 @@ const icons = {
 };
 
 export default async function GrowthMapPage() {
+  if (process.env.MAJOR_EXPERIENCES_ENABLED === "false") redirect("/chat")
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
   const map = await getGrowthMap(session.user.id);

@@ -1,8 +1,6 @@
 import "server-only"
 
 import { convexMutation, convexQuery } from "@/lib/convex-server"
-import { getAccountOverview } from "@/lib/data/account"
-import { sevenDayWindowStart } from "@/lib/date-time"
 import type {
   OperatorConversation,
   OperatorGoal,
@@ -79,25 +77,8 @@ export function getOperatorMessagePage(input: {
 }
 
 export async function getOperatorWeeklyActivity(userId: string): Promise<OperatorWeeklyActivity | null> {
-  const account = await getAccountOverview(userId)
-  if (!account) return null
-  const since = sevenDayWindowStart(account.preferences.timezone).toISOString()
-  const workspaces = (await Promise.all(
-    account.conversations.map((conversation) => convexQuery<
-      { userId: string; conversationId: string }, OperatorWorkspace | null
-    >("operator:getWorkspace", { userId, conversationId: conversation.id }, member(userId)))
-  )).filter((workspace): workspace is OperatorWorkspace => workspace !== null)
-  const conversationTurns = workspaces.reduce((count, workspace) => count + workspace.messages.filter(
-    (message) => message.role === "user" && message.createdAt >= since
-  ).length, 0)
-  const current = workspaces[0]
-  return {
-    since,
-    conversationTurns,
-    openTasks: current?.tasks.length ?? 0,
-    activeGoals: current?.goals.filter((goal) => goal.status === "active").length ?? 0,
-    enoughData: conversationTurns >= 3,
-  }
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  return convexQuery("operator:getWeeklyActivity", { userId, since }, member(userId))
 }
 
 export function beginOperatorTurn(input: {

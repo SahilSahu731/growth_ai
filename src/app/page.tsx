@@ -1,24 +1,25 @@
 import Link from "next/link"
-import { getServerSession } from "next-auth"
-import { ArrowUpRight, Brain, Check, ChevronRight, Compass, Heart, Leaf, LineChart, RefreshCcw, ShieldCheck, Sparkles, Target } from "lucide-react"
+import { Brain, Check, ChevronRight, Compass, Heart, Leaf, LineChart, RefreshCcw, ShieldCheck, Sparkles, Target } from "lucide-react"
 
-import { authOptions } from "@/auth"
 import { BrandLogo } from "@/components/brand-logo"
 import { DynamicGrowthShowcase } from "@/components/landing/dynamic-growth-showcase"
+import { LandingAccountCtas, LandingPrimaryCta } from "@/components/landing/public-account-state"
 import { SiteFooter } from "@/components/landing/site-footer"
+import { publicAppUrl } from "@/lib/public-url"
 
 const lifeAreas = ["Product", "Career", "Client work", "Learning", "Creative work"]
 
-export default async function HomePage() {
-  const session = await getServerSession(authOptions)
-  const startHref = session?.user ? "/chat" : "/signup"
+export default function HomePage() {
+  const baseUrl = publicAppUrl()
+  const structuredData = { "@context": "https://schema.org", "@graph": [{ "@type": "Organization", "@id": `${baseUrl}/#organization`, name: "GrowthAI", url: baseUrl, logo: `${baseUrl}/favicon.png` }, { "@type": "SoftwareApplication", name: "GrowthAI", applicationCategory: "ProductivityApplication", operatingSystem: "Web", url: baseUrl, description: "An AI coach for solo builders and knowledge workers that turns ambiguous priorities into manageable actions and grounded weekly reflection.", offers: { "@type": "Offer", price: "0", priceCurrency: "INR" }, publisher: { "@id": `${baseUrl}/#organization` } }] }
   return <main className="min-h-screen overflow-x-hidden bg-[#fafafa] text-neutral-950">
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
     <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <header className="sticky top-4 z-50">
         <nav className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between rounded-full border border-neutral-200/80 bg-white/85 px-4 shadow-[0_8px_30px_rgba(0,0,0,.025)] backdrop-blur-md sm:px-6">
           <Link href="/" className="flex items-center gap-2 font-display text-base tracking-wide transition hover:opacity-70"><BrandLogo className="size-8" priority />GrowthAI</Link>
           <div className="hidden items-center gap-7 text-[11px] font-bold uppercase tracking-[.14em] text-neutral-500 md:flex"><a href="#system" className="hover:text-neutral-950">The system</a><a href="#inside" className="hover:text-neutral-950">Inside</a><Link href="/pricing" className="hover:text-neutral-950">Pricing</Link></div>
-          <div className="flex items-center gap-2"><Link href={session?.user ? "/chat" : "/login"} className="hidden rounded-full border border-neutral-200 bg-white px-5 py-2 text-xs font-bold text-neutral-800 transition hover:-translate-y-0.5 hover:bg-neutral-50 sm:block">{session?.user ? "Workspace" : "Log in"}</Link><Link href={startHref} className="group flex items-center gap-1.5 rounded-full bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/10 transition hover:-translate-y-0.5 hover:bg-primary/85">{session?.user ? "Continue" : "Start growing"}<ArrowUpRight className="size-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></Link></div>
+          <LandingAccountCtas />
         </nav>
       </header>
 
@@ -27,7 +28,7 @@ export default async function HomePage() {
         <div className="relative z-10 flex items-center gap-2 rounded-full border border-neutral-200 bg-white/85 px-3 py-1.5 text-xs font-bold text-neutral-600 shadow-sm backdrop-blur"><BrandLogo className="size-6 rounded-full" /><span>For solo builders and knowledge workers</span></div>
         <h1 className="relative z-10 mt-7 max-w-5xl text-[clamp(2.8rem,7.2vw,6.4rem)] font-black leading-[.98] tracking-[-.055em] text-neutral-950">Turn a stuck priority into<br /><span className="font-editorial block text-[1.08em] font-normal italic tracking-[-.025em] text-neutral-400 sm:inline">one clear next step.</span></h1>
         <p className="relative z-10 mt-7 max-w-2xl px-3 text-base font-medium leading-8 text-neutral-500 sm:text-lg">GrowthAI helps you unpack an ambiguous self-directed priority, approve a manageable action, and review the evidence a week later—without streaks, pressure, or inflated promises.</p>
-        <div className="relative z-10 mt-9 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row"><Link href={startHref} className="group flex h-12 w-full max-w-64 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition hover:-translate-y-0.5 hover:bg-primary/85 sm:w-auto">Begin with one intention<ArrowUpRight className="size-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></Link><a href="#inside" className="group flex h-12 w-full max-w-64 items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white/80 px-6 text-sm font-semibold text-neutral-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-white sm:w-auto">See how it feels<ChevronRight className="size-4 transition group-hover:translate-x-0.5" /></a></div>
+        <div className="relative z-10 mt-9 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row"><LandingPrimaryCta>Begin with one intention</LandingPrimaryCta><a href="#inside" className="group flex h-12 w-full max-w-64 items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white/80 px-6 text-sm font-semibold text-neutral-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-white sm:w-auto">See how it feels<ChevronRight className="size-4 transition group-hover:translate-x-0.5" /></a></div>
         <div className="relative z-10 mt-7 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-semibold text-neutral-500"><span className="flex items-center gap-1.5"><Check className="size-3.5" />Up to three active goals free</span><span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5" />Access-controlled data</span><span className="flex items-center gap-1.5"><Heart className="size-3.5" />No shame or hustle culture</span></div>
 
         <div id="inside" className="relative z-10 mt-16 w-full px-1 sm:px-4">
@@ -54,9 +55,9 @@ export default async function HomePage() {
         <div className="rounded-3xl border border-neutral-200 bg-neutral-100/60 p-3 shadow-sm sm:p-5"><div className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400">Evening reflection · Wellbeing</p><p className="mt-4 text-sm leading-7 text-neutral-700">“I wanted to call my sister, but work ran late again. I kept thinking I needed a long conversation, so I did nothing.”</p><div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><div className="flex items-center gap-2"><Sparkles className="size-4" /><p className="text-xs font-bold">GrowthAI</p></div><p className="mt-3 text-sm leading-7 text-neutral-600">The size of the ideal conversation may be stopping the small connection you actually want. Try sending a voice note instead of waiting for the perfect hour.</p><p className="mt-3 text-sm font-bold text-neutral-900">Would a two-minute voice note feel honest enough for today?</p></div></div></div>
       </section>
 
-      <section className="py-16 text-center"><div className="mx-auto max-w-4xl rounded-3xl border border-neutral-200 bg-white px-6 py-14 shadow-sm"><Leaf className="mx-auto size-7 text-primary" /><h2 className="mt-6 text-4xl font-black tracking-[-.04em] sm:text-6xl">Which priority keeps circling?</h2><p className="mx-auto mt-5 max-w-xl text-base leading-8 text-neutral-500">Bring one real stuck point. Leave with a small action you can inspect, edit, and approve.</p><Link href={startHref} className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-primary px-7 text-sm font-semibold text-primary-foreground transition hover:-translate-y-0.5 hover:bg-primary/85">Start free<ArrowUpRight className="size-4" /></Link></div></section>
+      <section className="py-16 text-center"><div className="mx-auto max-w-4xl rounded-3xl border border-neutral-200 bg-white px-6 py-14 shadow-sm"><Leaf className="mx-auto size-7 text-primary" /><h2 className="mt-6 text-4xl font-black tracking-[-.04em] sm:text-6xl">Which priority keeps circling?</h2><p className="mx-auto mt-5 max-w-xl text-base leading-8 text-neutral-500">Bring one real stuck point. Leave with a small action you can inspect, edit, and approve.</p><div className="mt-8 flex justify-center"><LandingPrimaryCta>Start free</LandingPrimaryCta></div></div></section>
     </div>
-    <SiteFooter signedIn={Boolean(session?.user)} />
+    <SiteFooter signedIn={false} />
   </main>
 }
 

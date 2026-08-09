@@ -1,4 +1,5 @@
 import "server-only"
+import { cache } from "react"
 
 import { convexMutation, convexQuery } from "@/lib/convex-server"
 import type { UserPlanTier } from "@/lib/data/users"
@@ -29,8 +30,12 @@ export type AccountOverview = {
   }
 }
 
-export function getAccountOverview(userId: string): Promise<AccountOverview | null> {
+export const getAccountOverview = cache(function getAccountOverview(userId: string): Promise<AccountOverview | null> {
   return convexQuery("account:getOverview", { userId }, member(userId, "account:read"))
+})
+
+export function getAccountState(userId: string): Promise<{ planTier: "free" | "pro" | "founder" | "team" } | null> {
+  return convexQuery("account:getState", { userId }, member(userId, "account:read"))
 }
 
 function member(userId: string, scope: string) {
@@ -52,6 +57,17 @@ export function updateAccountPreferences(input: {
 
 export function exportUserData(userId: string): Promise<Record<string, unknown> | null> {
   return convexQuery("account:exportUserData", { userId }, member(userId, "account:export"))
+}
+
+export type AccountExportStatus = { id: string; status: "queued" | "processing" | "completed" | "failed" | "expired"; stage: string; rowCount: number; byteSize: number; expiresAt: string; errorCode: string | null }
+export function requestAccountExport(userId: string, tokenHash: string): Promise<{ id: string; status: string }> {
+  return convexMutation("exports:request", { userId, tokenHash }, member(userId, "account:export"))
+}
+export function getAccountExportStatus(userId: string, jobId: string, tokenHash: string): Promise<AccountExportStatus | null> {
+  return convexQuery("exports:status", { userId, jobId, tokenHash }, member(userId, "account:export"))
+}
+export function downloadAccountExport(userId: string, jobId: string, tokenHash: string): Promise<{ createdAt: string; completedAt?: string; expiresAt: string; chunks: Array<{ section: string; data: string }> } | null> {
+  return convexQuery("exports:download", { userId, jobId, tokenHash }, member(userId, "account:export"))
 }
 
 export function acceptLegalNotices(userId: string, versions: { termsVersion: string; privacyVersion: string; aiNoticeVersion: string }): Promise<boolean> {

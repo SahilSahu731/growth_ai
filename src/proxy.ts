@@ -7,6 +7,7 @@ function nonce() {
 
 export function proxy(request: NextRequest) {
   const value = nonce()
+  const requestId = request.headers.get("x-request-id")?.match(/^[A-Za-z0-9_-]{8,100}$/)?.[0] ?? crypto.randomUUID()
   const development = process.env.NODE_ENV === "development"
   const convexOrigin = process.env.NEXT_PUBLIC_CONVEX_URL ? new URL(process.env.NEXT_PUBLIC_CONVEX_URL).origin : ""
   const policy = [
@@ -30,8 +31,10 @@ export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set("x-nonce", value)
   requestHeaders.set("content-security-policy", policy)
+  requestHeaders.set("x-request-id", requestId)
   const response = NextResponse.next({ request: { headers: requestHeaders } })
   response.headers.set("content-security-policy", policy)
+  response.headers.set("x-request-id", requestId)
   return response
 }
 

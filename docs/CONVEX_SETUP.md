@@ -45,6 +45,8 @@ Convex validates RS256 tokens using the role-specific JWKS endpoints under `/api
 4. Run authenticated member, admin, webhook, retention, export, and deletion smoke tests.
 5. Delete the old runtime deploy variable and rotate/revoke the old deploy key in Convex Deployment Settings.
 
+Schema changes follow the expand/migrate/contract sequence in `MIGRATIONS_AND_ROLLBACK.md`. Deploy new optional fields/indexes before code that requires them. Privacy jobs are resumable, but a Convex deployment does not automatically roll data back with the Next.js artifact.
+
 For stronger compartmentalization, deploy admin, webhook, and background entry points as separate services/projects and inject only that service's private key. The role/scope boundary works in one codebase, but process isolation is required before claiming that a full web-runtime compromise cannot read every runtime secret.
 
 ## Rotation

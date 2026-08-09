@@ -216,3 +216,22 @@ export function updateAdminAnnouncement(input: AnnouncementInput & { actor: stri
 export function deleteAdminAnnouncement(input: { actor: string; announcementId: string }): Promise<boolean> {
   return convexMutation("admin:deleteAnnouncement", input, admin(input.actor, "admin:delete"))
 }
+
+export type AdminOperations = {
+  generatedAt: string
+  billing: { failed: number; deadLetter: number; openAlerts: number; criticalAlerts: number }
+  email: { failed: number; deadLetter: number }
+  deletion: { failed: number; processing: number; stale: number }
+  exports: { failed: number; processing: number; stale: number }
+  ai: { openCircuits: number; circuits: Array<{ key: string; consecutiveFailures: number; openedUntil: string | null; updatedAt: string }> }
+  security: { blockedAdminKeys: number }
+  jobs: Array<{ kind: "deletion" | "export"; id: string; status: string; stage: string; attempts: number; errorCode: string | null; updatedAt: string }>
+}
+
+export function getAdminOperations(): Promise<AdminOperations> {
+  return convexQuery("admin:getOperations", {}, admin("session", "admin:read"))
+}
+
+export function retryAdminOperationJob(input: { actor: string; kind: "deletion" | "export"; jobId: string; reason: string }): Promise<boolean> {
+  return convexMutation("admin:retryOperationJob", input, admin(input.actor, "admin:write"))
+}

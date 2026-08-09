@@ -11,9 +11,9 @@ export const getMap = query({
   handler: async (ctx, { userId }) => {
     await requireMember(ctx, userId, "operator:member")
     const [items, goals, tasks] = await Promise.all([
-      ctx.db.query("growthMapItems").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).collect(),
-      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).collect(),
-      ctx.db.query("operatorTasks").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).collect(),
+      ctx.db.query("growthMapItems").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).take(500),
+      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).take(100),
+      ctx.db.query("operatorTasks").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).take(1000),
     ])
     return { items: items.sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map(clean), goals: goals.map(clean), outcomes: { completed: tasks.filter((item: any) => item.status === "done").length, dismissed: tasks.filter((item: any) => item.status === "dismissed").length, open: tasks.filter((item: any) => item.status === "todo").length } }
   },

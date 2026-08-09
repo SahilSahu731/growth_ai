@@ -2,6 +2,8 @@
   "name": "growth_ai",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.8.2",
+  "engines": { "node": ">=20.18 <25" },
   "scripts": {
     "dev": "next dev",
     "convex:dev": "convex dev",
@@ -20,7 +22,11 @@
     "license:check": "license-checker-rseidelsohn --production --excludePackages 'growth_ai@0.1.0' --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;BlueOak-1.0.0;CC0-1.0;CC-BY-4.0;Python-2.0;OFL-1.1;LGPL-3.0-or-later'",
     "hooks:install": "git config core.hooksPath .githooks",
     "validate:env": "tsx scripts/validate-env.ts",
-    "build:production": "npm run validate:env && next build --webpack"
+    "build:production": "npm run validate:env && next build --webpack",
+    "clean": "node scripts/clean-generated.mjs",
+    "performance:budget": "node scripts/check-performance-budgets.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "load:test": "node scripts/load-test.mjs"
   },
   "dependencies": {
     "@fontsource/instrument-serif": "^5.3.0",

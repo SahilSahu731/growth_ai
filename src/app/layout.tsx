@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import { GlobalAnnouncementBanner } from "@/components/global-announcement-banner"
+import { publicAppUrlObject } from "@/lib/public-url"
 
-const siteUrl = new URL(process.env.NEXT_PUBLIC_APP_URL?.startsWith("http") ? process.env.NEXT_PUBLIC_APP_URL : "https://growth.ai")
+const siteUrl = publicAppUrlObject()
 const description = "GrowthAI is an access-controlled AI growth coach that turns honest conversations into clear goals, focused tasks, and useful weekly reflection."
 
 export const metadata: Metadata = {
@@ -17,9 +18,9 @@ export const metadata: Metadata = {
   category: "productivity",
   alternates: { canonical: "/" },
   icons: {
-    icon: [{ url: "/favicon.png?v=2", type: "image/png", sizes: "1254x1254" }],
+    icon: [{ url: "/favicon.png?v=2", type: "image/png", sizes: "500x500" }],
     shortcut: "/favicon.png?v=2",
-    apple: [{ url: "/favicon.png?v=2", sizes: "1254x1254", type: "image/png" }],
+    apple: [{ url: "/favicon.png?v=2", sizes: "500x500", type: "image/png" }],
   },
   manifest: "/manifest.webmanifest",
   openGraph: {
@@ -28,13 +29,13 @@ export const metadata: Metadata = {
     siteName: "GrowthAI",
     title: "GrowthAI — Grow with clarity and intention",
     description,
-    images: [{ url: "/logo.png", width: 1024, height: 1024, alt: "GrowthAI logo" }],
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "GrowthAI — one clear next step" }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "GrowthAI — Grow with clarity and intention",
     description,
-    images: ["/logo.png"],
+    images: ["/twitter-image"],
   },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
   formatDetection: { email: false, address: false, telephone: false },

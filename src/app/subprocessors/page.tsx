@@ -14,7 +14,7 @@ const providers = [
 
 export default function SubprocessorsPage() {
   return <TrustPage eyebrow="Privacy" title="Subprocessors." summary="These providers may process data to operate GrowthAI. Analytics, email and monitoring providers are not listed because they are not currently integrated." updated="2026-08-07">
-    <TrustSection title="Current providers"><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left"><thead><tr><th className="border-b py-3">Provider</th><th className="border-b py-3">Purpose</th><th className="border-b py-3">Data</th></tr></thead><tbody>{providers.map(([name, purpose, data]) => <tr key={name}><td className="border-b py-4 pr-4 font-semibold text-neutral-900">{name}</td><td className="border-b py-4 pr-4">{purpose}</td><td className="border-b py-4">{data}</td></tr>)}</tbody></table></div></TrustSection>
+    <TrustSection title="Current providers"><div className="overflow-x-auto" tabIndex={0} aria-label="Current subprocessors table"><table className="w-full min-w-[620px] text-left"><thead><tr><th className="border-b py-3">Provider</th><th className="border-b py-3">Purpose</th><th className="border-b py-3">Data</th></tr></thead><tbody>{providers.map(([name, purpose, data]) => <tr key={name}><td className="border-b py-4 pr-4 font-semibold text-neutral-900">{name}</td><td className="border-b py-4 pr-4">{purpose}</td><td className="border-b py-4">{data}</td></tr>)}</tbody></table></div></TrustSection>
     <TrustSection title="Changes"><p>Material additions will be reflected here before the provider processes customer content. Provider configuration remains optional until enabled in the deployment environment.</p></TrustSection>
   </TrustPage>
 }

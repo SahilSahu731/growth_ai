@@ -2,7 +2,6 @@
 import {
   internalActionGeneric as internalAction,
   internalMutationGeneric as internalMutation,
-  internalQueryGeneric as internalQuery,
   makeFunctionReference,
   mutationGeneric as mutation,
   queryGeneric as query,
@@ -167,7 +166,7 @@ export const getUserBilling = query({
     await requireMember(ctx, userId, "billing:read")
     const [user, subscriptions, entitlements] = await Promise.all([
       userForId(ctx, userId),
-      ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
+      ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).take(100),
       resolveEntitlements(ctx, userId),
     ])
     if (!user || user.deletedAt) return null
@@ -197,7 +196,7 @@ export const beginCheckout = mutation({
     const nowIso = now.toISOString()
     const user = await userForId(ctx, args.userId)
     if (!user || user.deletedAt) throw new Error("Account not available")
-    const subscriptions = await ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).collect()
+    const subscriptions = await ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).take(100)
     for (const item of subscriptions) {
       if (item.status === "created" && (!item.checkoutExpiresAt || item.checkoutExpiresAt <= nowIso)) {
         await ctx.db.patch(item._id, { status: "expired", entitlementState: "none", updatedAt: nowIso })
@@ -329,7 +328,7 @@ export const expireAbandonedCheckouts = internalMutation({
   args: {},
   handler: async (ctx) => {
     const nowIso = new Date().toISOString()
-    const created = await ctx.db.query("subscriptions").withIndex("by_user_status").filter((q: any) => q.eq(q.field("status"), "created")).collect()
+    const created = await ctx.db.query("subscriptions").withIndex("by_user_status").filter((q: any) => q.eq(q.field("status"), "created")).take(200)
     let expired = 0
     for (const item of created) if (!item.checkoutExpiresAt || item.checkoutExpiresAt <= nowIso) {
       await ctx.db.patch(item._id, { status: "expired", entitlementState: "none", updatedAt: nowIso })
@@ -340,9 +339,16 @@ export const expireAbandonedCheckouts = internalMutation({
   },
 })
 
-export const subscriptionsForReconciliation = internalQuery({
+export const subscriptionsForReconciliation = internalMutation({
   args: {},
-  handler: async (ctx) => (await ctx.db.query("subscriptions").collect()).filter((item: any) => !["expired", "refunded"].includes(item.status)).slice(0, 200).map(clean),
+  handler: async (ctx) => {
+    const state = await ctx.db.query("maintenanceCursors").withIndex("by_key", (q: any) => q.eq("key", "billing-reconciliation")).unique()
+    const batch = await ctx.db.query("subscriptions").paginate({ cursor: state?.cursor ?? null, numItems: 100 })
+    const timestamp = new Date().toISOString()
+    const fields = { cursor: batch.isDone ? undefined : batch.continueCursor, lastBatchSize: batch.page.length, completedCycles: (state?.completedCycles ?? 0) + (batch.isDone ? 1 : 0), updatedAt: timestamp }
+    if (state) await ctx.db.patch(state._id, fields); else await ctx.db.insert("maintenanceCursors", { key: "billing-reconciliation", ...fields })
+    return batch.page.filter((item: any) => !["expired", "refunded"].includes(item.status)).map(clean)
+  },
 })
 
 export const applyReconciliation = internalMutation({
@@ -375,7 +381,7 @@ export const applyReconciliation = internalMutation({
   },
 })
 
-const listForReconcile = makeFunctionReference<"query">("billing:subscriptionsForReconciliation")
+const listForReconcile = makeFunctionReference<"mutation">("billing:subscriptionsForReconciliation")
 const applyReconcile = makeFunctionReference<"mutation">("billing:applyReconciliation")
 
 export const reconcileSubscriptions = internalAction({
@@ -384,7 +390,7 @@ export const reconcileSubscriptions = internalAction({
     const keyId = process.env.RAZORPAY_KEY_ID
     const keySecret = process.env.RAZORPAY_KEY_SECRET
     if (!keyId || !keySecret) return { checked: 0, skipped: "not_configured" }
-    const subscriptions = await ctx.runQuery(listForReconcile as any, {}) as any[]
+    const subscriptions = await ctx.runMutation(listForReconcile as any, {}) as any[]
     let checked = 0
     for (const item of subscriptions) {
       try {

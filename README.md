@@ -1,6 +1,6 @@
 # GrowthAI
 
-GrowthAI is a chat-first AI growth operator for the whole of life—not a journal, a generic chatbot, or a giant task board. A person talks naturally about what feels stuck; GrowthAI gathers evidence, identifies a likely bottleneck, proposes a short direction, and turns an approved plan into concrete tasks that can adapt as reality changes.
+GrowthAI is a chat-first planning coach for solo builders and knowledge workers facing an ambiguous self-directed priority. A person talks naturally about what feels stuck; GrowthAI gathers evidence, identifies a likely bottleneck, proposes a short direction, and turns an approved plan into concrete tasks that can adapt as reality changes.
 
 ## Product experience
 
@@ -9,7 +9,7 @@ GrowthAI is a chat-first AI growth operator for the whole of life—not a journa
 - Editable goals and task cards that stay synchronized across chat, Goals, Tasks, and weekly reports.
 - A database-enforced three-goal limit on Free, with expanded goal capacity on paid plans.
 - In-context Pro upgrade dialogs, a full pricing comparison, and an authenticated billing workspace with checkout resume, subscription history, and cancellation.
-- Timezone-aware planning, account export, and verified account deletion.
+- Timezone-aware planning, asynchronous expiring account export, and verified staged account deletion.
 - A separately authenticated admin workspace for users, content, access, plans, billing visibility, platform metrics, and privileged audit history.
 - Admin-managed, scheduled global announcements with top-bar, floating-banner, and popup placements, safe color controls, and live previews.
 - Gemini structured operator responses with a fully usable deterministic fallback and explicit safeguards against shame, diagnosis, therapy impersonation, and high-stakes directives.
@@ -46,6 +46,7 @@ The admin workspace is available at `/admin` after its independent email, passwo
 ```bash
 npm run verify
 npm run build
+npm run performance:budget
 ```
 
 `verify` runs ESLint, TypeScript, and the test suite. The independent build command validates the production application and generated Next.js route types.
@@ -55,5 +56,7 @@ npm run build
 - Send Razorpay subscription events to `/api/webhooks/razorpay`; configure only the subscription events accepted by the application.
 - Use distinct secrets for development, preview, and production.
 - Complete a full Razorpay test-mode lifecycle before using live keys. Paid access is granted only by matching, signed provider webhooks—not by the checkout redirect.
+- Use `/health` for liveness and `/api/ready` for dependency readiness. The protected `/admin/operations` view shows bounded job/provider backlogs.
+- Review [G5 readiness](./docs/G5_READINESS.md), [service objectives](./docs/SLOS_AND_ALERTS.md), [operations runbooks](./docs/OPERATIONS_RUNBOOKS.md), and [migration/rollback guidance](./docs/MIGRATIONS_AND_ROLLBACK.md). Repository controls do not replace external monitoring, on-call assignment, incident exercises, or restore evidence.
 
 Before public launch, complete the evidence-based steps in [docs/EXTERNAL_COMPLETION_STEPS.md](./docs/EXTERNAL_COMPLETION_STEPS.md), the [accessibility plan](./docs/ACCESSIBILITY_TEST_PLAN.md), the [incident runbook](./docs/SECURITY_INCIDENT_RESPONSE.md), the [audit runbook](./docs/AUDIT_OPERATIONS.md), and the [legal checklist](./docs/LEGAL_REVIEW_CHECKLIST.md). See [roadmap.md](./roadmap.md) and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the full sequence.
