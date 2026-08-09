@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, CalendarDays, CircleUserRound, CreditCard, MessageSquareText, Target, Workflow } from "lucide-react"
 
-import { AdminAccessControl, AdminDeleteConversationForm, AdminDeleteUserForm, AdminGoalStatusForm, AdminTaskStatusForm, AdminUserEditor } from "@/components/admin/admin-forms"
+import { AdminAccessControl, AdminComplimentaryGrantForm, AdminDeleteConversationForm, AdminDeleteUserForm, AdminGoalStatusForm, AdminTaskStatusForm, AdminUserEditor } from "@/components/admin/admin-forms"
 import { adminLogoutAction } from "@/app/admin/actions"
 import { getAdminUserDetail } from "@/lib/data/admin"
 import { adminSessionHasRecentMfa } from "@/lib/admin/auth"
@@ -35,7 +35,7 @@ export default async function AdminUserPage({ params, searchParams }: { params: 
 
   <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{counts.map((item) => <div key={item.label} className="rounded-2xl border border-white/8 bg-white/[.025] p-4"><item.icon className="size-4 text-neutral-600" /><p className="mt-4 text-xl font-black text-white">{item.value}</p><p className="mt-1 text-[10px] text-neutral-600">{item.label}</p></div>)}</section>
 
-  <section className="grid gap-5 lg:grid-cols-2"><Panel title="Account & entitlement" description="Changes take effect on the next product request."><AdminUserEditor user={user} /></Panel><Panel title="Access control" description="Suspend authentication without destroying account data."><AdminAccessControl user={user} /><div className="mt-5 border-t border-white/8 pt-5 text-xs text-neutral-600"><p>Timezone: <span className="text-neutral-400">{user.timezone ?? "UTC"}</span></p><p className="mt-1">Coach tone: <span className="capitalize text-neutral-400">{user.coachTone ?? "balanced"}</span></p></div></Panel></section>
+  <section className="grid gap-5 lg:grid-cols-2"><Panel title="Account" description="Profile changes do not alter paid access."><AdminUserEditor user={user} /></Panel><Panel title="Access control" description="Suspend authentication without destroying account data."><AdminAccessControl user={user} /><div className="mt-5 border-t border-white/8 pt-5 text-xs text-neutral-600"><p>Timezone: <span className="text-neutral-400">{user.timezone ?? "UTC"}</span></p><p className="mt-1">Coach tone: <span className="capitalize text-neutral-400">{user.coachTone ?? "balanced"}</span></p></div></Panel></section><Panel title="Complimentary access" description="Owner-only, time-limited, and recorded in the audit log. This never creates or edits a paid subscription."><AdminComplimentaryGrantForm userId={user.id} /></Panel>
 
   <Panel title="Goals" description="Changing a goal away from active dismisses its remaining open tasks.">{detail.goals.length ? <div className="space-y-3">{detail.goals.map((goal) => <article key={goal.id} className="rounded-xl border border-white/8 bg-black/10 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><p className="text-xs font-bold text-neutral-200">{goal.title}</p><p className="mt-1 line-clamp-2 text-[10px] leading-5 text-neutral-600">{goal.description || "No description"}</p></div><AdminGoalStatusForm userId={user.id} goalId={goal.id} status={goal.status} /></div></article>)}</div> : <Empty icon={Target} text="No goals created." />}</Panel>
 

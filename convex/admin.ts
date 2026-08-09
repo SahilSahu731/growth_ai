@@ -3,10 +3,9 @@ import { mutationGeneric as mutation, queryGeneric as query } from "convex/serve
 import { v } from "convex/values"
 
 import { requireScope } from "./lib/serverAuth"
-import { assertGoalCanBeActive, assertPlanSupportsActiveGoals } from "./lib/goalLimits"
+import { assertGoalCanBeActive } from "./lib/goalLimits"
+import { syncCachedPlan } from "./lib/entitlements"
 import { collectOwnedRows } from "./lib/ownedData"
-
-const planTier = v.union(v.literal("free"), v.literal("pro"), v.literal("founder"), v.literal("team"))
 
 const announcementTone = v.union(v.literal("info"), v.literal("offer"), v.literal("warning"), v.literal("critical"))
 const announcementPlacement = v.union(v.literal("top_bar"), v.literal("floating_banner"), v.literal("popup"))
@@ -247,23 +246,42 @@ export const getUserDetail = mutation({
 })
 
 export const updateUser = mutation({
-  args: { actor: v.string(), userId: v.string(), name: v.string(), planTier },
+  args: { actor: v.string(), userId: v.string(), name: v.string(), planTier: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("founder"), v.literal("team"))) },
   handler: async (ctx, args) => {
     await requireScope(ctx, "admin", "admin:write")
     const user = await userById(ctx, args.userId)
     if (!user) throw new Error("User not found")
+    if (args.planTier !== undefined) throw new Error("PLAN_ASSIGNMENT_RETIRED: Paid access must come from a provider subscription or an audited complimentary grant")
     const name = args.name.replace(/\s+/g, " ").trim().slice(0, 100)
     if (name.length < 2) throw new Error("Name must contain at least 2 characters")
-    await assertPlanSupportsActiveGoals(ctx, { userId: args.userId, planTier: args.planTier })
-    await ctx.db.patch(user._id, { name, planTier: args.planTier, updatedAt: new Date().toISOString() })
+    await ctx.db.patch(user._id, { name, updatedAt: new Date().toISOString() })
     await writeAudit(ctx, {
       actor: args.actor,
       action: "user.update",
       targetType: "user",
       targetId: args.userId,
-      summary: `Updated ${user.email}: name and plan (${user.planTier} to ${args.planTier}).`,
+      summary: `Updated the display name for ${user.email}. Billing and entitlements were not changed.`,
     })
     return clean(await ctx.db.get(user._id))
+  },
+})
+
+export const grantComplimentaryAccess = mutation({
+  args: { actor: v.string(), userId: v.string(), planTier: v.union(v.literal("pro"), v.literal("founder")), source: v.union(v.literal("admin_comp"), v.literal("design_partner"), v.literal("support_remediation")), reason: v.string(), startsAt: v.string(), expiresAt: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "admin", "admin:billing")
+    const user = await userById(ctx, args.userId)
+    if (!user || user.deletedAt) throw new Error("User not found")
+    const startsAt = new Date(args.startsAt)
+    const expiresAt = new Date(args.expiresAt)
+    const reason = args.reason.replace(/\s+/g, " ").trim().slice(0, 300)
+    if (!reason || Number.isNaN(startsAt.getTime()) || Number.isNaN(expiresAt.getTime()) || expiresAt <= startsAt) throw new Error("A valid reason and access window are required")
+    if (expiresAt.getTime() - startsAt.getTime() > 366 * 24 * 60 * 60 * 1000) throw new Error("Complimentary access cannot exceed one year")
+    const nowIso = new Date().toISOString()
+    const grantId = await ctx.db.insert("entitlementGrants", { userId: args.userId, planTier: args.planTier, source: args.source, reason, actor: args.actor, startsAt: startsAt.toISOString(), expiresAt: expiresAt.toISOString(), createdAt: nowIso, updatedAt: nowIso })
+    await syncCachedPlan(ctx, args.userId)
+    await writeAudit(ctx, { actor: args.actor, actorRole: "owner", action: "entitlement.complimentary_grant", targetType: "entitlement_grant", targetId: String(grantId), reason, result: "success", summary: `Granted ${args.planTier} access to ${user.email} from ${startsAt.toISOString()} through ${expiresAt.toISOString()} (${args.source}).` })
+    return clean(await ctx.db.get(grantId))
   },
 })
 
@@ -409,16 +427,20 @@ export const getBilling = query({
     await requireScope(ctx, "admin", "admin:billing")
     const page = Math.max(1, Math.floor(args.page))
     const pageSize = Math.min(100, Math.max(1, Math.floor(args.pageSize)))
-    const [subscriptions, events, users] = await Promise.all([
+    const [subscriptions, events, users, grants, alerts] = await Promise.all([
       ctx.db.query("subscriptions").collect(),
       ctx.db.query("billingEvents").collect(),
       ctx.db.query("users").collect(),
+      ctx.db.query("entitlementGrants").collect(),
+      ctx.db.query("billingAlerts").collect(),
     ])
     const userMap = new Map(users.map((user: any) => [user.legacyId, { name: user.name, email: user.email }]))
     const sorted = events.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt))
     const start = (page - 1) * pageSize
     return {
       subscriptions: subscriptions.sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map((item: any) => ({ ...clean(item), user: userMap.get(item.userId) ?? null })),
+      grants: grants.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt)).map((item: any) => ({ ...clean(item), user: userMap.get(item.userId) ?? null })),
+      alerts: alerts.sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 100).map(clean),
       events: sorted.slice(start, start + pageSize).map(clean),
       totalEvents: sorted.length,
       page,

@@ -33,7 +33,7 @@ type SettingsUser = {
   name: string
   email: string
   image: string | null
-  planTier: PlanId | "team"
+  planTier: PlanId
 }
 
 const tabs: Array<{ id: TabId; label: string; description: string; keywords: string; icon: ComponentType<{ className?: string }> }> = [

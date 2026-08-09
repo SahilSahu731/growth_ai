@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { PLAN_CATALOG } from "../../src/lib/plans"
+import { resolveEntitlements } from "./entitlements"
 
 export function goalLimitForPlan(planTier: string | undefined) {
-  return planTier === "free" || !planTier ? 3 : 25
+  return planTier && planTier in PLAN_CATALOG ? PLAN_CATALOG[planTier as keyof typeof PLAN_CATALOG].limits.activeGoals : PLAN_CATALOG.free.limits.activeGoals
 }
 
 async function goalLimitState(ctx: any, userId: string, planTierOverride?: string) {
@@ -10,7 +12,8 @@ async function goalLimitState(ctx: any, userId: string, planTierOverride?: strin
     ctx.db.query("operatorGoals").withIndex("by_user_status", (q: any) => q.eq("userId", userId).eq("status", "active")).collect(),
   ])
   if (!user) throw new Error("USER_NOT_FOUND: User not found")
-  return { activeGoals, limit: goalLimitForPlan(planTierOverride ?? user.planTier) }
+  const entitlements = planTierOverride ? null : await resolveEntitlements(ctx, userId)
+  return { activeGoals, limit: goalLimitForPlan(planTierOverride ?? entitlements?.plan ?? "free") }
 }
 
 export async function assertGoalCanBeActive(ctx: any, input: { userId: string; goalId?: string }) {

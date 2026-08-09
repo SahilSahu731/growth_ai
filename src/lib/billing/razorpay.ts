@@ -1,4 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto"
+import { configuredProviderPlan, type PaidPlanId } from "@/lib/plans"
+
+export type { PaidPlanId } from "@/lib/plans"
 
 export function verifyRazorpaySignature(body: string, signature: string | null, secret: string) {
   if (!signature || !secret) return false
@@ -14,12 +17,9 @@ export function unixIso(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? new Date(value * 1000).toISOString() : undefined
 }
 
-export type PaidPlanId = "pro" | "founder"
-
 export function paidPlanConfig(plan: PaidPlanId, environment: Record<string, string | undefined>) {
-  const planId = plan === "founder" ? environment.RAZORPAY_PLAN_ID_FOUNDER : environment.RAZORPAY_PLAN_ID_PRO_MONTHLY
-  if (!planId) return null
-  return { plan, planId, amount: plan === "founder" ? 74900 : 99900, currency: "INR" as const }
+  const configured = configuredProviderPlan(plan, environment)
+  return configured ? { plan: configured.plan, planId: configured.planId, amount: configured.amount, currency: configured.currency } : null
 }
 
 export function isAllowedRazorpayCheckoutUrl(value: string) {
@@ -52,11 +52,16 @@ export function isRazorpaySubscriptionId(value: string | undefined): value is st
 export const MUTATING_SUBSCRIPTION_EVENTS = new Set([
   "subscription.authenticated", "subscription.activated", "subscription.charged",
   "subscription.pending", "subscription.halted", "subscription.paused", "subscription.resumed",
-  "subscription.cancelled", "subscription.completed",
+  "subscription.cancelled", "subscription.completed", "subscription.updated",
+  "payment.failed", "payment.refunded", "refund.processed",
 ])
 
 export type RazorpayWebhook = {
   event?: string
   created_at?: number
-  payload?: { subscription?: { entity?: { id?: string; plan_id?: string; status?: string; current_start?: number; current_end?: number; notes?: { userId?: string; plan?: string } } } }
+  payload?: {
+    subscription?: { entity?: { id?: string; plan_id?: string; status?: string; current_start?: number; current_end?: number; cancel_at_cycle_end?: boolean; notes?: { userId?: string; plan?: string } } }
+    payment?: { entity?: { subscription_id?: string } }
+    refund?: { entity?: { payment_id?: string; notes?: { subscriptionId?: string } } }
+  }
 }

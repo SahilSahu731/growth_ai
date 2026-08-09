@@ -11,9 +11,11 @@ import {
   setTaskStatusAction,
   setUserAccessAction,
   updateUserAction,
+  grantComplimentaryAccessAction,
+  replayBillingEventAction,
   type AdminActionState,
 } from "@/app/admin/actions"
-import type { AdminPlanTier, AdminUser } from "@/lib/data/admin"
+import type { AdminUser } from "@/lib/data/admin"
 
 const initial: AdminActionState = {}
 const inputClass = "h-11 w-full rounded-xl border border-white/10 bg-white/[.035] px-3 text-sm text-white outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-primary/5"
@@ -30,7 +32,17 @@ function Feedback({ state }: { state: AdminActionState }) {
 
 export function AdminUserEditor({ user }: { user: AdminUser }) {
   const [state, action] = useActionState(updateUserAction, initial)
-  return <form action={action} className="space-y-4"><input type="hidden" name="userId" value={user.id} /><label className="block space-y-2"><span className="text-xs font-semibold text-neutral-400">Display name</span><input className={inputClass} name="name" defaultValue={user.name} minLength={2} maxLength={100} required /></label><label className="block space-y-2"><span className="text-xs font-semibold text-neutral-400">Plan entitlement</span><select className={inputClass} name="planTier" defaultValue={user.planTier}>{(["free", "pro", "founder", "team"] satisfies AdminPlanTier[]).map((tier) => <option key={tier} value={tier}>{tier[0].toUpperCase() + tier.slice(1)}</option>)}</select></label><div className="flex items-center justify-between gap-3"><Feedback state={state} /><SubmitButton>Save changes</SubmitButton></div></form>
+  return <form action={action} className="space-y-4"><input type="hidden" name="userId" value={user.id} /><label className="block space-y-2"><span className="text-xs font-semibold text-neutral-400">Display name</span><input className={inputClass} name="name" defaultValue={user.name} minLength={2} maxLength={100} required /></label><p className="text-xs leading-5 text-neutral-500">Paid access is provider-owned. Complimentary access uses the separate audited grant workflow.</p><div className="flex items-center justify-between gap-3"><Feedback state={state} /><SubmitButton>Save changes</SubmitButton></div></form>
+}
+
+export function AdminComplimentaryGrantForm({ userId }: { userId: string }) {
+  const [state, action] = useActionState(grantComplimentaryAccessAction, initial)
+  return <form action={action} className="space-y-3"><input type="hidden" name="userId" value={userId} /><div className="grid gap-3 sm:grid-cols-2"><select className={inputClass} name="planTier" defaultValue="pro"><option value="pro">Pro</option><option value="founder">Founder</option></select><select className={inputClass} name="source" defaultValue="design_partner"><option value="design_partner">Design partner</option><option value="admin_comp">Admin complimentary</option><option value="support_remediation">Support remediation</option></select><label className="space-y-1"><span className="text-xs text-neutral-500">Starts (UTC)</span><input className={inputClass} name="startsAt" type="datetime-local" required /></label><label className="space-y-1"><span className="text-xs text-neutral-500">Expires (UTC)</span><input className={inputClass} name="expiresAt" type="datetime-local" required /></label></div><textarea className={`${inputClass} min-h-24 py-3`} name="reason" minLength={10} maxLength={300} placeholder="Required business reason" required /><Feedback state={state} /><SubmitButton>Grant access</SubmitButton></form>
+}
+
+export function AdminBillingReplayForm({ providerEventId }: { providerEventId: string }) {
+  const [state, action] = useActionState(replayBillingEventAction, initial)
+  return <form action={action} className="flex min-w-64 items-center gap-2"><input type="hidden" name="providerEventId" value={providerEventId} /><input className={`${inputClass} h-9`} name="reason" minLength={10} maxLength={300} placeholder="Replay reason" required /><SubmitButton>Replay</SubmitButton><Feedback state={state} /></form>
 }
 
 export function AdminAccessControl({ user }: { user: AdminUser }) {

@@ -8,6 +8,9 @@ import { isAllowedRazorpayCheckoutUrl, isRazorpaySubscriptionId, isTrustedBillin
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
+  if (process.env.BILLING_CHECKOUT_ENABLED !== "true") {
+    return NextResponse.json({ error: "New checkout is temporarily unavailable. Existing subscriptions are unaffected.", code: "checkout_disabled" }, { status: 503, headers: { "retry-after": "3600" } })
+  }
   if (!isTrustedBillingRequest({
     requestUrl: request.url,
     origin: request.headers.get("origin"),
@@ -57,7 +60,7 @@ export async function POST(request: Request) {
     }
     await completeBillingCheckout({
       userId: session.user.id, token: lock.token, providerSubscriptionId: result.id,
-      planTier: plan, amount: planConfig.amount, currency: planConfig.currency, checkoutUrl: result.short_url,
+      providerPlanId: planConfig.planId, planTier: plan, amount: planConfig.amount, currency: planConfig.currency, checkoutUrl: result.short_url,
     })
     return NextResponse.json({ checkoutUrl: result.short_url }, { headers: { "cache-control": "no-store" } })
   } catch (error) {

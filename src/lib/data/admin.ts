@@ -87,7 +87,7 @@ export function getAdminUserDetail(input: { userId: string; actor: string; reaso
   return convexMutation("admin:getUserDetail", input, admin(input.actor, "admin:sensitive-read"))
 }
 
-export function updateAdminUser(input: { actor: string; userId: string; name: string; planTier: AdminPlanTier }): Promise<AdminUser> {
+export function updateAdminUser(input: { actor: string; userId: string; name: string }): Promise<AdminUser> {
   return convexMutation("admin:updateUser", input, admin(input.actor, "admin:write"))
 }
 
@@ -113,10 +113,20 @@ export function deleteAdminUser(input: { actor: string; userId: string; confirma
 
 export type AdminBilling = {
   subscriptions: Array<{ id: string; userId: string; providerSubscriptionId: string; planTier: string; status: string; amount: number; currency: string; updatedAt: string; user: { name: string; email: string } | null }>
-  events: Array<{ id: string; providerEventId: string; eventType: string; status: string; failureReason?: string; createdAt: string }>
+  events: Array<{ id: string; providerEventId: string; eventType: string; status: string; attemptCount?: number; failureCategory?: string; failureReason?: string; finalDisposition?: string; nextRetryAt?: string; createdAt: string }>
+  grants: Array<{ id: string; userId: string; planTier: "pro" | "founder"; source: string; reason: string; startsAt: string; expiresAt: string; revokedAt?: string; user: { name: string; email: string } | null }>
+  alerts: Array<{ id: string; kind: string; severity: string; message: string; status: string; updatedAt: string }>
   totalEvents: number
   page: number
   pages: number
+}
+
+export function grantAdminComplimentaryAccess(input: { actor: string; userId: string; planTier: "pro" | "founder"; source: "admin_comp" | "design_partner" | "support_remediation"; reason: string; startsAt: string; expiresAt: string }): Promise<Record<string, unknown>> {
+  return convexMutation("admin:grantComplimentaryAccess", input, admin(input.actor, "admin:billing"))
+}
+
+export function replayAdminBillingEvent(input: { actor: string; providerEventId: string; reason: string }): Promise<Record<string, unknown>> {
+  return convexMutation("billing:replayEvent", input, admin(input.actor, "admin:billing"))
 }
 
 export function getAdminBilling(page: number, pageSize = 25): Promise<AdminBilling> {

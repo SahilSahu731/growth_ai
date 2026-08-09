@@ -25,8 +25,9 @@ import {
   setAdminTaskStatus,
   setAdminUserAccess,
   updateAdminUser,
+  grantAdminComplimentaryAccess,
+  replayAdminBillingEvent,
   updateAdminAnnouncement,
-  type AdminPlanTier,
 } from "@/lib/data/admin"
 import { ANNOUNCEMENT_PRESETS, type AnnouncementAlignment, type AnnouncementButtonStyle, type AnnouncementPlacement, type AnnouncementTone } from "@/lib/announcement-types"
 
@@ -126,9 +127,8 @@ export async function updateUserAction(_state: AdminActionState, formData: FormD
     const session = await requireFreshAdmin("support-write", "billing")
     const userId = text(formData, "userId")
     const name = text(formData, "name")
-    const planTier = text(formData, "planTier")
-    if (!userId || !name || !["free", "pro", "founder", "team"].includes(planTier)) return { error: "Enter valid account details." }
-    await updateAdminUser({ actor: session.email, userId, name, planTier: planTier as AdminPlanTier })
+    if (!userId || !name) return { error: "Enter valid account details." }
+    await updateAdminUser({ actor: session.email, userId, name })
     revalidatePath(`/admin/users/${userId}`)
     revalidatePath("/admin/users")
     revalidatePath("/admin")
@@ -136,6 +136,35 @@ export async function updateUserAction(_state: AdminActionState, formData: FormD
   } catch (error) {
     return { error: safeMessage(error) }
   }
+}
+
+export async function grantComplimentaryAccessAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  try {
+    const session = await requireFreshAdmin("owner")
+    const userId = text(formData, "userId")
+    const planTier = text(formData, "planTier")
+    const source = text(formData, "source")
+    const reason = text(formData, "reason")
+    const startsAt = text(formData, "startsAt")
+    const expiresAt = text(formData, "expiresAt")
+    if (!userId || !["pro", "founder"].includes(planTier) || !["admin_comp", "design_partner", "support_remediation"].includes(source) || reason.length < 10 || !startsAt || !expiresAt) return { error: "Complete the grant reason, source, and access window." }
+    await grantAdminComplimentaryAccess({ actor: session.email, userId, planTier: planTier as "pro" | "founder", source: source as "admin_comp" | "design_partner" | "support_remediation", reason, startsAt, expiresAt })
+    revalidatePath(`/admin/users/${userId}`)
+    revalidatePath("/admin/billing")
+    return { success: "Complimentary access granted and audited." }
+  } catch (error) { return { error: safeMessage(error) } }
+}
+
+export async function replayBillingEventAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  try {
+    const session = await requireFreshAdmin("owner")
+    const providerEventId = text(formData, "providerEventId")
+    const reason = text(formData, "reason")
+    if (!providerEventId || reason.length < 10) return { error: "Enter a replay reason of at least 10 characters." }
+    await replayAdminBillingEvent({ actor: session.email, providerEventId, reason })
+    revalidatePath("/admin/billing")
+    return { success: "Billing event replay completed." }
+  } catch (error) { return { error: safeMessage(error) } }
 }
 
 export async function setUserAccessAction(_state: AdminActionState, formData: FormData): Promise<AdminActionState> {

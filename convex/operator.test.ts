@@ -162,7 +162,7 @@ describe("operator invariants", () => {
       })
     })
     const server = t.withIdentity(adminWriteIdentity)
-    await expect(server.mutation(api.admin.updateUser, { actor: "owner@example.test", userId: "user-1", name: "Alex Example", planTier: "free" })).rejects.toThrow("GOAL_LIMIT_REACHED")
+    await expect(server.mutation(api.admin.updateUser, { actor: "owner@example.test", userId: "user-1", name: "Alex Example", planTier: "free" })).rejects.toThrow("PLAN_ASSIGNMENT_RETIRED")
 
     await t.run(async (ctx) => {
       const user = await ctx.db.query("users").withIndex("by_legacy_id", (q) => q.eq("legacyId", "user-1")).unique()

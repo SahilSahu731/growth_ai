@@ -1,12 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { mutationGeneric as mutation, queryGeneric as query } from "convex/server"
+import {
+  internalActionGeneric as internalAction,
+  internalMutationGeneric as internalMutation,
+  internalQueryGeneric as internalQuery,
+  makeFunctionReference,
+  mutationGeneric as mutation,
+  queryGeneric as query,
+} from "convex/server"
 import { v } from "convex/values"
 
+import { resolveEntitlements, syncCachedPlan } from "./lib/entitlements"
 import { requireMember, requireScope } from "./lib/serverAuth"
 
 const paidPlan = v.union(v.literal("pro"), v.literal("founder"))
-const activeStatuses = new Set(["active", "authenticated"])
-const blockingStatuses = new Set(["created", "pending", "active", "authenticated"])
+const eventFailure = v.union(v.literal("validation"), v.literal("ownership"), v.literal("provider_mismatch"), v.literal("transition"), v.literal("transient"), v.literal("internal"))
+const MAX_EVENT_ATTEMPTS = 5
+const CHECKOUT_TTL_MS = 24 * 60 * 60 * 1000
+const GRACE_MS = 72 * 60 * 60 * 1000
 
 function clean(document: any) {
   if (!document) return null
@@ -20,23 +30,126 @@ async function userForId(ctx: any, userId: string) {
   return ctx.db.query("users").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", userId)).unique()
 }
 
+async function raiseAlert(ctx: any, input: { kind: "webhook_failure" | "reconciliation_drift" | "entitlement_change" | "checkout_abandoned"; severity: "info" | "warning" | "critical"; dedupeKey: string; message: string; userId?: string; providerSubscriptionId?: string; billingEventId?: string }, nowIso: string) {
+  const existing = await ctx.db.query("billingAlerts").withIndex("by_dedupe", (q: any) => q.eq("dedupeKey", input.dedupeKey)).unique()
+  if (existing?.status === "open") {
+    await ctx.db.patch(existing._id, { message: input.message.slice(0, 500), severity: input.severity, updatedAt: nowIso })
+    return
+  }
+  await ctx.db.insert("billingAlerts", { ...input, message: input.message.slice(0, 500), status: "open", createdAt: nowIso, updatedAt: nowIso })
+}
+
+function retryAt(attempt: number, now: number) {
+  return new Date(now + Math.min(6 * 60 * 60 * 1000, 30_000 * 2 ** Math.max(0, attempt - 1))).toISOString()
+}
+
+async function failEvent(ctx: any, event: any, category: "validation" | "ownership" | "provider_mismatch" | "transition" | "transient" | "internal", reason: string, now: Date) {
+  const attemptCount = (event.attemptCount ?? 0) + 1
+  const dead = attemptCount >= MAX_EVENT_ATTEMPTS || category === "ownership" || category === "provider_mismatch"
+  const nowIso = now.toISOString()
+  await ctx.db.patch(event._id, {
+    status: dead ? "dead_letter" : "failed",
+    attemptCount,
+    lastAttemptAt: nowIso,
+    failureCategory: category,
+    failureReason: reason.slice(0, 300),
+    nextRetryAt: dead ? undefined : retryAt(attemptCount, now.getTime()),
+    finalDisposition: dead ? "dead_letter" : undefined,
+    processedAt: dead ? nowIso : undefined,
+  })
+  await raiseAlert(ctx, {
+    kind: "webhook_failure", severity: dead ? "critical" : "warning",
+    dedupeKey: `webhook:${event.providerEventId}`, billingEventId: String(event._id),
+    providerSubscriptionId: event.providerSubscriptionId,
+    message: `${event.eventType} ${dead ? "moved to dead letter" : "failed"}: ${reason}`,
+  }, nowIso)
+  return { ok: false as const, dead, category, attemptCount }
+}
+
+function transitionFor(event: any, current: any, now: Date) {
+  const status = event.reportedStatus
+  const type = event.eventType
+  const nowIso = now.toISOString()
+  const periodEnd = event.periodEnd ?? current.periodEnd
+  if (type === "refund.processed" || type === "payment.refunded") {
+    return { status: "refunded", entitlementState: "revoked" as const, accessUntil: nowIso, graceUntil: undefined, refundedAt: nowIso }
+  }
+  if (["subscription.authenticated", "subscription.activated", "subscription.charged", "subscription.resumed"].includes(type) || status === "active" || status === "authenticated") {
+    return { status: status ?? "active", entitlementState: "active" as const, accessUntil: periodEnd, graceUntil: undefined, pausedAt: undefined }
+  }
+  if (type === "payment.failed" || status === "pending" || status === "halted") {
+    return { status: status ?? "payment_failed", entitlementState: "grace" as const, accessUntil: periodEnd, graceUntil: new Date(now.getTime() + GRACE_MS).toISOString() }
+  }
+  if (status === "paused" || type === "subscription.paused") {
+    return { status: "paused", entitlementState: "paused" as const, accessUntil: nowIso, graceUntil: undefined, pausedAt: nowIso }
+  }
+  if (status === "cancelled" || type === "subscription.cancelled") {
+    const keepUntilEnd = Boolean(event.reportedCancelAtPeriodEnd && periodEnd && periodEnd > nowIso)
+    return { status: "cancelled", entitlementState: keepUntilEnd ? "active" as const : "revoked" as const, accessUntil: keepUntilEnd ? periodEnd : nowIso, graceUntil: undefined, cancelAtPeriodEnd: keepUntilEnd, canceledAt: nowIso }
+  }
+  if (status === "completed" || type === "subscription.completed") {
+    const keepUntilEnd = Boolean(periodEnd && periodEnd > nowIso)
+    return { status: "completed", entitlementState: keepUntilEnd ? "active" as const : "revoked" as const, accessUntil: keepUntilEnd ? periodEnd : nowIso, graceUntil: undefined }
+  }
+  if (type === "subscription.updated" && typeof status === "string") {
+    return { status, cancelAtPeriodEnd: Boolean(event.reportedCancelAtPeriodEnd), accessUntil: periodEnd }
+  }
+  return null
+}
+
+async function processStoredEvent(ctx: any, event: any) {
+  if (["processed", "ignored"].includes(event.status)) return { ok: true as const, duplicate: true }
+  const now = new Date()
+  const nowIso = now.toISOString()
+  if (!event.providerSubscriptionId) return failEvent(ctx, event, "validation", "Missing subscription identifier", now)
+  const subscription = await ctx.db.query("subscriptions").withIndex("by_provider_subscription", (q: any) => q.eq("providerSubscriptionId", event.providerSubscriptionId)).unique()
+  if (!subscription) return failEvent(ctx, event, "transient", "Unknown checkout subscription", now)
+  if (event.noteUserId && subscription.userId !== event.noteUserId) return failEvent(ctx, event, "ownership", "Subscription ownership conflict", now)
+  if (event.providerPlanId && subscription.providerPlanId && event.providerPlanId !== subscription.providerPlanId) return failEvent(ctx, event, "provider_mismatch", "Provider plan identifier changed unexpectedly", now)
+  if (event.eventCreatedAt && subscription.providerStatusUpdatedAt && event.eventCreatedAt < subscription.providerStatusUpdatedAt) {
+    await ctx.db.patch(event._id, { status: "ignored", attemptCount: (event.attemptCount ?? 0) + 1, lastAttemptAt: nowIso, processedAt: nowIso, finalDisposition: "stale", failureReason: "Older than the last applied provider event" })
+    return { ok: true as const, stale: true }
+  }
+  const transition = transitionFor(event, subscription, now)
+  if (!transition) return failEvent(ctx, event, "transition", `Unsupported billing transition: ${event.eventType}/${event.reportedStatus ?? "unknown"}`, now)
+  const before = await resolveEntitlements(ctx, subscription.userId, now)
+  await ctx.db.patch(subscription._id, {
+    ...transition,
+    ...(event.periodStart ? { periodStart: event.periodStart } : {}),
+    ...(event.periodEnd ? { periodEnd: event.periodEnd } : {}),
+    providerStatusUpdatedAt: event.eventCreatedAt ?? now.getTime(),
+    lastProviderEventId: event.providerEventId,
+    updatedAt: nowIso,
+  })
+  const after = await syncCachedPlan(ctx, subscription.userId, now)
+  await ctx.db.patch(event._id, { status: "processed", attemptCount: (event.attemptCount ?? 0) + 1, lastAttemptAt: nowIso, nextRetryAt: undefined, failureCategory: undefined, failureReason: undefined, finalDisposition: "applied", processedAt: nowIso })
+  if (after && before.plan !== after.plan) {
+    await raiseAlert(ctx, { kind: "entitlement_change", severity: "info", dedupeKey: `entitlement:${event.providerEventId}`, userId: subscription.userId, providerSubscriptionId: subscription.providerSubscriptionId, billingEventId: String(event._id), message: `Entitlement changed from ${before.plan} to ${after.plan} after ${event.eventType}.` }, nowIso)
+  }
+  return { ok: true as const, applied: true }
+}
+
+export const getEntitlements = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    await requireMember(ctx, userId, "billing:read")
+    if (!await userForId(ctx, userId)) return null
+    return resolveEntitlements(ctx, userId)
+  },
+})
+
 export const getUserBilling = query({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
     await requireMember(ctx, userId, "billing:read")
-    const [user, subscriptions] = await Promise.all([
+    const [user, subscriptions, entitlements] = await Promise.all([
       userForId(ctx, userId),
       ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
+      resolveEntitlements(ctx, userId),
     ])
     if (!user || user.deletedAt) return null
     const sorted = subscriptions.sort((left: any, right: any) => right.updatedAt.localeCompare(left.updatedAt))
-    return {
-      planTier: user.planTier,
-      timezone: user.timezone ?? "UTC",
-      locale: user.locale ?? "en",
-      subscriptions: sorted.map(clean),
-      current: clean(sorted.find((item: any) => blockingStatuses.has(item.status)) ?? sorted[0] ?? null),
-    }
+    return { planTier: entitlements.plan, entitlements, timezone: user.timezone ?? "UTC", locale: user.locale ?? "en", subscriptions: sorted.map(clean), current: clean(sorted.find((item: any) => ["created", "pending", "active", "authenticated", "paused", "halted"].includes(item.status)) ?? sorted[0] ?? null) }
   },
 })
 
@@ -49,20 +162,20 @@ export const beginCheckout = mutation({
     const user = await userForId(ctx, args.userId)
     if (!user || user.deletedAt) throw new Error("Account not available")
     const subscriptions = await ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).collect()
-    if (subscriptions.some((item: any) => blockingStatuses.has(item.status))) {
-      return { ok: false as const, reason: "existing_subscription" as const }
+    for (const item of subscriptions) {
+      if (item.status === "created" && (!item.checkoutExpiresAt || item.checkoutExpiresAt <= nowIso)) {
+        await ctx.db.patch(item._id, { status: "expired", entitlementState: "none", updatedAt: nowIso })
+        await raiseAlert(ctx, { kind: "checkout_abandoned", severity: "info", dedupeKey: `checkout:${item.providerSubscriptionId}`, userId: args.userId, providerSubscriptionId: item.providerSubscriptionId, message: "Abandoned checkout expired." }, nowIso)
+      }
     }
+    const live = subscriptions.some((item: any) => item.status !== "created" && ["pending", "active", "authenticated", "paused", "halted"].includes(item.status))
+      || subscriptions.some((item: any) => item.status === "created" && item.checkoutExpiresAt && item.checkoutExpiresAt > nowIso)
+    if (live) return { ok: false as const, reason: "existing_subscription" as const }
     const existingLock = await ctx.db.query("billingCheckoutLocks").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).unique()
     if (existingLock && existingLock.expiresAt > nowIso) return { ok: false as const, reason: "checkout_in_progress" as const }
     if (existingLock) await ctx.db.delete(existingLock._id)
     const token = crypto.randomUUID()
-    await ctx.db.insert("billingCheckoutLocks", {
-      userId: args.userId,
-      token,
-      planTier: args.planTier,
-      createdAt: nowIso,
-      expiresAt: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
-    })
+    await ctx.db.insert("billingCheckoutLocks", { userId: args.userId, token, planTier: args.planTier, createdAt: nowIso, expiresAt: new Date(now.getTime() + 10 * 60 * 1000).toISOString() })
     return { ok: true as const, token }
   },
 })
@@ -78,34 +191,15 @@ export const releaseCheckout = mutation({
 })
 
 export const completeCheckout = mutation({
-  args: {
-    userId: v.string(), token: v.string(), providerSubscriptionId: v.string(), planTier: paidPlan,
-    amount: v.number(), currency: v.string(), checkoutUrl: v.string(),
-  },
+  args: { userId: v.string(), token: v.string(), providerSubscriptionId: v.string(), providerPlanId: v.string(), planTier: paidPlan, amount: v.number(), currency: v.string(), checkoutUrl: v.string() },
   handler: async (ctx, args) => {
     await requireMember(ctx, args.userId, "billing:write")
     const lock = await ctx.db.query("billingCheckoutLocks").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).unique()
-    if (!lock || lock.token !== args.token || lock.expiresAt <= new Date().toISOString() || lock.planTier !== args.planTier) {
-      throw new Error("Checkout lock expired")
-    }
+    if (!lock || lock.token !== args.token || lock.expiresAt <= new Date().toISOString() || lock.planTier !== args.planTier) throw new Error("Checkout lock expired")
     const duplicate = await ctx.db.query("subscriptions").withIndex("by_provider_subscription", (q: any) => q.eq("providerSubscriptionId", args.providerSubscriptionId)).unique()
     if (duplicate && duplicate.userId !== args.userId) throw new Error("Subscription ownership conflict")
     const timestamp = new Date().toISOString()
-    if (!duplicate) {
-      await ctx.db.insert("subscriptions", {
-        userId: args.userId,
-        provider: "razorpay",
-        providerSubscriptionId: args.providerSubscriptionId,
-        checkoutUrl: args.checkoutUrl,
-        planTier: args.planTier,
-        status: "created",
-        cancelAtPeriodEnd: false,
-        amount: args.amount,
-        currency: args.currency,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      })
-    }
+    if (!duplicate) await ctx.db.insert("subscriptions", { userId: args.userId, provider: "razorpay", providerSubscriptionId: args.providerSubscriptionId, providerPlanId: args.providerPlanId, checkoutUrl: args.checkoutUrl, checkoutExpiresAt: new Date(Date.now() + CHECKOUT_TTL_MS).toISOString(), planTier: args.planTier, status: "created", entitlementState: "none", cancelAtPeriodEnd: false, amount: args.amount, currency: args.currency, createdAt: timestamp, updatedAt: timestamp })
     await ctx.db.delete(lock._id)
     return true
   },
@@ -117,60 +211,141 @@ export const markCancelRequested = mutation({
     await requireMember(ctx, args.userId, "billing:write")
     const subscription = await ctx.db.query("subscriptions").withIndex("by_provider_subscription", (q: any) => q.eq("providerSubscriptionId", args.providerSubscriptionId)).unique()
     if (!subscription || subscription.userId !== args.userId) throw new Error("Subscription not found")
-    await ctx.db.patch(subscription._id, { cancelAtPeriodEnd: true, updatedAt: new Date().toISOString() })
+    const timestamp = new Date().toISOString()
+    await ctx.db.patch(subscription._id, { cancelAtPeriodEnd: true, cancelRequestedAt: timestamp, updatedAt: timestamp })
     return true
   },
 })
 
-export const recordEvent = mutation({
-  args: {
-    providerEventId: v.string(), eventType: v.string(), payloadDigest: v.string(),
-    shouldApply: v.boolean(), ignoreReason: v.optional(v.string()),
-    userId: v.optional(v.string()), providerSubscriptionId: v.optional(v.string()), subscriptionStatus: v.optional(v.string()),
-    planTier: v.optional(paidPlan), amount: v.optional(v.number()), currency: v.optional(v.string()),
-    periodStart: v.optional(v.string()), periodEnd: v.optional(v.string()),
-  },
+export const receiveEvent = mutation({
+  args: { providerEventId: v.string(), eventType: v.string(), payloadDigest: v.string(), eventCreatedAt: v.optional(v.number()), shouldApply: v.boolean(), ignoreReason: v.optional(v.string()), noteUserId: v.optional(v.string()), providerSubscriptionId: v.optional(v.string()), providerPlanId: v.optional(v.string()), reportedStatus: v.optional(v.string()), reportedCancelAtPeriodEnd: v.optional(v.boolean()), periodStart: v.optional(v.string()), periodEnd: v.optional(v.string()) },
   handler: async (ctx, args) => {
     await requireScope(ctx, "webhook", "billing:webhook")
     const duplicate = await ctx.db.query("billingEvents").withIndex("by_provider_event", (q: any) => q.eq("providerEventId", args.providerEventId)).unique()
-    if (duplicate) return { duplicate: true }
-    const timestamp = new Date().toISOString()
-    const eventId = await ctx.db.insert("billingEvents", {
-      provider: "razorpay", providerEventId: args.providerEventId, eventType: args.eventType,
-      payloadDigest: args.payloadDigest, status: "received", createdAt: timestamp,
-    })
-    if (!args.shouldApply) {
-      await ctx.db.patch(eventId, { status: "ignored", failureReason: args.ignoreReason?.slice(0, 300), processedAt: timestamp })
-      return { duplicate: false }
-    }
-    try {
-      if (!args.userId || !args.providerSubscriptionId || !args.subscriptionStatus || !args.planTier || args.amount === undefined || !args.currency) {
-        throw new Error("Validated subscription fields are incomplete")
-      }
-      const user = await userForId(ctx, args.userId)
-      if (!user) throw new Error("Subscription user not found")
-      const existing = await ctx.db.query("subscriptions").withIndex("by_provider_subscription", (q: any) => q.eq("providerSubscriptionId", args.providerSubscriptionId)).unique()
-      if (!existing) throw new Error("Unknown checkout subscription")
-      if (existing.userId !== args.userId || existing.planTier !== args.planTier) throw new Error("Subscription ownership conflict")
-      const fields = {
-        userId: args.userId, provider: "razorpay" as const, providerSubscriptionId: args.providerSubscriptionId,
-        planTier: args.planTier, status: args.subscriptionStatus,
-        ...(args.periodStart ? { periodStart: args.periodStart } : {}), ...(args.periodEnd ? { periodEnd: args.periodEnd } : {}),
-        cancelAtPeriodEnd: args.subscriptionStatus === "cancelled" || existing?.cancelAtPeriodEnd === true,
-        amount: args.amount, currency: args.currency, updatedAt: timestamp,
-      }
-      await ctx.db.patch(existing._id, fields)
+    if (duplicate) return { duplicate: true, digestMismatch: duplicate.payloadDigest !== args.payloadDigest, eventId: String(duplicate._id), status: duplicate.status }
+    const nowIso = new Date().toISOString()
+    const eventId = await ctx.db.insert("billingEvents", { provider: "razorpay", providerEventId: args.providerEventId, eventType: args.eventType, payloadDigest: args.payloadDigest, eventCreatedAt: args.eventCreatedAt, providerSubscriptionId: args.providerSubscriptionId, providerPlanId: args.providerPlanId, reportedStatus: args.reportedStatus, reportedCancelAtPeriodEnd: args.reportedCancelAtPeriodEnd, noteUserId: args.noteUserId, periodStart: args.periodStart, periodEnd: args.periodEnd, status: args.shouldApply ? "received" : "ignored", attemptCount: 0, failureReason: args.shouldApply ? undefined : args.ignoreReason?.slice(0, 300), finalDisposition: args.shouldApply ? undefined : "ignored", processedAt: args.shouldApply ? undefined : nowIso, createdAt: nowIso })
+    return { duplicate: false, digestMismatch: false, eventId: String(eventId), status: args.shouldApply ? "received" : "ignored" }
+  },
+})
 
-      const allSubscriptions = await ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).collect()
-      const effective = allSubscriptions.map((item: any) => item.providerSubscriptionId === args.providerSubscriptionId ? { ...item, ...fields } : item)
-      const activePlans = effective.filter((item: any) => activeStatuses.has(item.status)).map((item: any) => item.planTier)
-      const effectivePlan = activePlans.includes("founder") ? "founder" : activePlans.includes("pro") ? "pro" : "free"
-      await ctx.db.patch(user._id, { planTier: effectivePlan, updatedAt: timestamp })
-      await ctx.db.patch(eventId, { status: "processed", processedAt: timestamp })
-      return { duplicate: false }
-    } catch (error) {
-      await ctx.db.patch(eventId, { status: "failed", failureReason: error instanceof Error ? error.message.slice(0, 300) : "Unknown error" })
-      throw error
+// Compatibility guard for older clients. The old all-in-one handler is
+// intentionally disabled because it could roll back the receipt on failure.
+export const recordEvent = mutation({
+  args: { providerEventId: v.string(), eventType: v.string(), payloadDigest: v.string(), shouldApply: v.boolean() },
+  handler: async (ctx) => {
+    await requireScope(ctx, "webhook", "billing:webhook")
+    throw new Error("BILLING_HANDLER_RETIRED: use receiveEvent then processEvent")
+  },
+})
+
+export const processEvent = mutation({
+  args: { providerEventId: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "webhook", "billing:webhook")
+    const event = await ctx.db.query("billingEvents").withIndex("by_provider_event", (q: any) => q.eq("providerEventId", args.providerEventId)).unique()
+    if (!event) throw new Error("Billing event receipt not found")
+    return processStoredEvent(ctx, event)
+  },
+})
+
+export const markEventFailure = mutation({
+  args: { providerEventId: v.string(), category: eventFailure, reason: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "webhook", "billing:webhook")
+    const event = await ctx.db.query("billingEvents").withIndex("by_provider_event", (q: any) => q.eq("providerEventId", args.providerEventId)).unique()
+    if (!event || ["processed", "ignored", "dead_letter"].includes(event.status)) return false
+    await failEvent(ctx, event, args.category, args.reason, new Date())
+    return true
+  },
+})
+
+export const replayEvent = mutation({
+  args: { providerEventId: v.string(), actor: v.string(), reason: v.string() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "admin", "admin:billing")
+    const reason = args.reason.replace(/\s+/g, " ").trim().slice(0, 300)
+    if (reason.length < 10) throw new Error("A replay reason of at least 10 characters is required")
+    const event = await ctx.db.query("billingEvents").withIndex("by_provider_event", (q: any) => q.eq("providerEventId", args.providerEventId)).unique()
+    if (!event || !["failed", "dead_letter"].includes(event.status)) throw new Error("Only failed or dead-letter events can be replayed")
+    const nowIso = new Date().toISOString()
+    await ctx.db.patch(event._id, { status: "received", nextRetryAt: undefined, finalDisposition: undefined, replayedAt: nowIso, replayedBy: args.actor })
+    const result = await processStoredEvent(ctx, { ...event, status: "received", replayedAt: nowIso, replayedBy: args.actor })
+    await ctx.db.insert("adminAuditLogs", { actor: args.actor, actorRole: "owner", action: "billing.event.replay", targetType: "billing_event", targetId: String(event._id), reason, result: result.ok ? "processed" : "failed", summary: `Replayed ${event.eventType} (${event.providerEventId}).`, createdAt: nowIso })
+    return result
+  },
+})
+
+export const retryDueEvents = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const nowIso = new Date().toISOString()
+    const failed = await ctx.db.query("billingEvents").withIndex("by_status_retry", (q: any) => q.eq("status", "failed").lte("nextRetryAt", nowIso)).take(50)
+    for (const event of failed) await processStoredEvent(ctx, event)
+    return failed.length
+  },
+})
+
+export const expireAbandonedCheckouts = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const nowIso = new Date().toISOString()
+    const created = await ctx.db.query("subscriptions").withIndex("by_user_status").filter((q: any) => q.eq(q.field("status"), "created")).collect()
+    let expired = 0
+    for (const item of created) if (!item.checkoutExpiresAt || item.checkoutExpiresAt <= nowIso) {
+      await ctx.db.patch(item._id, { status: "expired", entitlementState: "none", updatedAt: nowIso })
+      await raiseAlert(ctx, { kind: "checkout_abandoned", severity: "info", dedupeKey: `checkout:${item.providerSubscriptionId}`, userId: item.userId, providerSubscriptionId: item.providerSubscriptionId, message: "Abandoned checkout expired during maintenance." }, nowIso)
+      expired += 1
     }
+    return expired
+  },
+})
+
+export const subscriptionsForReconciliation = internalQuery({
+  args: {},
+  handler: async (ctx) => (await ctx.db.query("subscriptions").collect()).filter((item: any) => !["expired", "refunded"].includes(item.status)).slice(0, 200).map(clean),
+})
+
+export const applyReconciliation = internalMutation({
+  args: { providerSubscriptionId: v.string(), ok: v.boolean(), providerStatus: v.optional(v.string()), providerPlanId: v.optional(v.string()), periodStart: v.optional(v.string()), periodEnd: v.optional(v.string()), errorCategory: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.query("subscriptions").withIndex("by_provider_subscription", (q: any) => q.eq("providerSubscriptionId", args.providerSubscriptionId)).unique()
+    if (!item) return false
+    const now = new Date()
+    const nowIso = now.toISOString()
+    if (!args.ok || !args.providerStatus) {
+      await ctx.db.patch(item._id, { lastReconciledAt: nowIso, reconciliationStatus: "failed", reconciliationErrorCategory: args.errorCategory ?? "provider_error" })
+      await raiseAlert(ctx, { kind: "reconciliation_drift", severity: "warning", dedupeKey: `reconcile:${item.providerSubscriptionId}`, userId: item.userId, providerSubscriptionId: item.providerSubscriptionId, message: `Subscription reconciliation failed (${args.errorCategory ?? "provider_error"}).` }, nowIso)
+      return false
+    }
+    const drift = item.status !== args.providerStatus || Boolean(args.providerPlanId && item.providerPlanId !== args.providerPlanId)
+    await ctx.db.patch(item._id, { lastReconciledAt: nowIso, reconciliationStatus: drift ? "drift" : "matched", reconciliationErrorCategory: undefined })
+    if (drift) await raiseAlert(ctx, { kind: "reconciliation_drift", severity: "critical", dedupeKey: `reconcile:${item.providerSubscriptionId}`, userId: item.userId, providerSubscriptionId: item.providerSubscriptionId, message: `Provider reports ${args.providerStatus}/${args.providerPlanId ?? "unknown plan"}; application has ${item.status}/${item.providerPlanId ?? "unknown plan"}.` }, nowIso)
+    return !drift
+  },
+})
+
+const listForReconcile = makeFunctionReference<"query">("billing:subscriptionsForReconciliation")
+const applyReconcile = makeFunctionReference<"mutation">("billing:applyReconciliation")
+
+export const reconcileSubscriptions = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const keyId = process.env.RAZORPAY_KEY_ID
+    const keySecret = process.env.RAZORPAY_KEY_SECRET
+    if (!keyId || !keySecret) return { checked: 0, skipped: "not_configured" }
+    const subscriptions = await ctx.runQuery(listForReconcile as any, {}) as any[]
+    let checked = 0
+    for (const item of subscriptions) {
+      try {
+        const response = await fetch(`https://api.razorpay.com/v1/subscriptions/${encodeURIComponent(item.providerSubscriptionId)}`, { headers: { authorization: `Basic ${btoa(`${keyId}:${keySecret}`)}` }, signal: AbortSignal.timeout(10_000) })
+        const provider = await response.json() as any
+        await ctx.runMutation(applyReconcile as any, { providerSubscriptionId: item.providerSubscriptionId, ok: response.ok, ...(response.ok ? { providerStatus: provider.status, providerPlanId: provider.plan_id, ...(provider.current_start ? { periodStart: new Date(provider.current_start * 1000).toISOString() } : {}), ...(provider.current_end ? { periodEnd: new Date(provider.current_end * 1000).toISOString() } : {}) } : { errorCategory: `http_${response.status}` }) })
+      } catch {
+        await ctx.runMutation(applyReconcile as any, { providerSubscriptionId: item.providerSubscriptionId, ok: false, errorCategory: "network" })
+      }
+      checked += 1
+    }
+    return { checked }
   },
 })

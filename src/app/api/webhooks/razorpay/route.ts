@@ -4,14 +4,12 @@ import { safeErrorForLog } from "@/lib/safe-log"
 import {
   MUTATING_SUBSCRIPTION_EVENTS,
   isRazorpaySubscriptionId,
-  paidPlanConfig,
   payloadDigest,
   unixIso,
   verifyRazorpaySignature,
-  type PaidPlanId,
   type RazorpayWebhook,
 } from "@/lib/billing/razorpay"
-import { recordBillingEvent } from "@/lib/data/account"
+import { markBillingEventFailure, processBillingEvent, receiveBillingEvent } from "@/lib/data/account"
 
 export const runtime = "nodejs"
 
@@ -31,36 +29,39 @@ export async function POST(request: Request) {
   const digest = payloadDigest(rawBody)
   const suppliedEventId = request.headers.get("x-razorpay-event-id")
   const providerEventId = suppliedEventId && /^[A-Za-z0-9_-]{6,160}$/.test(suppliedEventId) ? suppliedEventId : `${eventType}:${digest}`
-  const notesPlan = subscription?.notes?.plan
-  const plan = notesPlan === "pro" || notesPlan === "founder" ? notesPlan as PaidPlanId : null
-  const config = plan ? paidPlanConfig(plan, process.env) : null
-  const validUserId = typeof subscription?.notes?.userId === "string" && /^[A-Za-z0-9_-]{8,160}$/.test(subscription.notes.userId)
-  const validSubscription = isRazorpaySubscriptionId(subscription?.id)
+  const noteUserId = typeof subscription?.notes?.userId === "string" && /^[A-Za-z0-9_-]{8,160}$/.test(subscription.notes.userId) ? subscription.notes.userId : undefined
+  const providerSubscriptionId = subscription?.id ?? event.payload?.payment?.entity?.subscription_id ?? event.payload?.refund?.entity?.notes?.subscriptionId
+  const validSubscription = isRazorpaySubscriptionId(providerSubscriptionId)
   const allowedEvent = MUTATING_SUBSCRIPTION_EVENTS.has(eventType)
-  const validPlan = Boolean(config && subscription?.plan_id === config.planId)
-  const validStatus = typeof subscription?.status === "string" && /^[a-z_]{3,40}$/.test(subscription.status)
-  const shouldApply = Boolean(allowedEvent && validUserId && validSubscription && validPlan && validStatus)
+  const validPlanId = !subscription?.plan_id || /^plan_[A-Za-z0-9]{6,100}$/.test(subscription.plan_id)
+  const validStatus = !subscription?.status || /^[a-z_]{3,40}$/.test(subscription.status)
+  const shouldApply = Boolean(allowedEvent && validSubscription && validPlanId && validStatus)
   const ignoreReason = shouldApply ? undefined : [
     !allowedEvent ? "Unsupported event type" : null,
-    !validUserId ? "Invalid user note" : null,
     !validSubscription ? "Invalid subscription identifier" : null,
-    !validPlan ? "Plan identifier mismatch" : null,
+    !validPlanId ? "Invalid plan identifier" : null,
     !validStatus ? "Invalid subscription status" : null,
   ].filter(Boolean).join("; ")
 
   try {
-    await recordBillingEvent({
+    const receipt = await receiveBillingEvent({
       providerEventId, eventType, payloadDigest: digest, shouldApply, ...(ignoreReason ? { ignoreReason } : {}),
-      ...(shouldApply && subscription && config ? {
-        userId: subscription.notes!.userId!, providerSubscriptionId: subscription.id!, subscriptionStatus: subscription.status!,
-        planTier: config.plan, amount: config.amount, currency: config.currency,
-        ...(unixIso(subscription.current_start) ? { periodStart: unixIso(subscription.current_start) } : {}),
-        ...(unixIso(subscription.current_end) ? { periodEnd: unixIso(subscription.current_end) } : {}),
+      ...(typeof event.created_at === "number" ? { eventCreatedAt: event.created_at * 1000 } : {}),
+      ...(shouldApply ? {
+        ...(noteUserId ? { noteUserId } : {}), providerSubscriptionId: providerSubscriptionId!,
+        ...(subscription?.plan_id ? { providerPlanId: subscription.plan_id } : {}),
+        ...(subscription?.status ? { reportedStatus: subscription.status } : {}),
+        ...(typeof subscription?.cancel_at_cycle_end === "boolean" ? { reportedCancelAtPeriodEnd: subscription.cancel_at_cycle_end } : {}),
+        ...(unixIso(subscription?.current_start) ? { periodStart: unixIso(subscription?.current_start) } : {}),
+        ...(unixIso(subscription?.current_end) ? { periodEnd: unixIso(subscription?.current_end) } : {}),
       } : {}),
     })
+    if (receipt.digestMismatch) return NextResponse.json({ error: "Event identifier was reused with a different payload." }, { status: 409 })
+    if (!receipt.duplicate && shouldApply) await processBillingEvent(providerEventId)
     return NextResponse.json({ received: true })
   } catch (error) {
     console.error("Razorpay webhook processing failed", safeErrorForLog(error))
+    await markBillingEventFailure(providerEventId, "internal", "Webhook processing infrastructure failure").catch(() => undefined)
     return NextResponse.json({ error: "Webhook processing failed." }, { status: 500 })
   }
 }

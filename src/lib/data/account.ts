@@ -66,22 +66,30 @@ export function requestAccountDeletion(userId: string, confirmationEmail: string
   return convexMutation("account:requestAccountDeletion", { userId, confirmationEmail }, member(userId, "account:delete"))
 }
 
-export function recordBillingEvent(input: {
+export function receiveBillingEvent(input: {
   providerEventId: string
   eventType: string
   payloadDigest: string
+  eventCreatedAt?: number
   shouldApply: boolean
   ignoreReason?: string
-  userId?: string
+  noteUserId?: string
   providerSubscriptionId?: string
-  subscriptionStatus?: string
-  planTier?: "pro" | "founder"
-  amount?: number
-  currency?: string
+  providerPlanId?: string
+  reportedStatus?: string
+  reportedCancelAtPeriodEnd?: boolean
   periodStart?: string
   periodEnd?: string
-}): Promise<{ duplicate: boolean }> {
-  return convexMutation("billing:recordEvent", input, { role: "webhook", subject: "webhook:razorpay", scope: "billing:webhook" })
+}): Promise<{ duplicate: boolean; digestMismatch: boolean; eventId: string; status: string }> {
+  return convexMutation("billing:receiveEvent", input, { role: "webhook", subject: "webhook:razorpay", scope: "billing:webhook" })
+}
+
+export function processBillingEvent(providerEventId: string): Promise<Record<string, unknown>> {
+  return convexMutation("billing:processEvent", { providerEventId }, { role: "webhook", subject: "webhook:razorpay", scope: "billing:webhook" })
+}
+
+export function markBillingEventFailure(providerEventId: string, category: "validation" | "ownership" | "provider_mismatch" | "transition" | "transient" | "internal", reason: string): Promise<boolean> {
+  return convexMutation("billing:markEventFailure", { providerEventId, category, reason }, { role: "webhook", subject: "webhook:razorpay", scope: "billing:webhook" })
 }
 
 export type BillingSubscription = {
@@ -121,7 +129,7 @@ export function releaseBillingCheckout(userId: string, token: string): Promise<b
   return convexMutation("billing:releaseCheckout", { userId, token }, member(userId, "billing:write"))
 }
 
-export function completeBillingCheckout(input: { userId: string; token: string; providerSubscriptionId: string; planTier: "pro" | "founder"; amount: number; currency: string; checkoutUrl: string }): Promise<boolean> {
+export function completeBillingCheckout(input: { userId: string; token: string; providerSubscriptionId: string; providerPlanId: string; planTier: "pro" | "founder"; amount: number; currency: string; checkoutUrl: string }): Promise<boolean> {
   return convexMutation("billing:completeCheckout", input, member(input.userId, "billing:write"))
 }
 
