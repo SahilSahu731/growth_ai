@@ -3,7 +3,8 @@ import { mutationGeneric as mutation, paginationOptsValidator, queryGeneric as q
 import { v } from "convex/values"
 import { requireMember, requireScope } from "./lib/serverAuth"
 import { conversationTitle } from "./lib/conversationTitle"
-import { assertGoalCanBeActive, goalLimitForPlan } from "./lib/goalLimits"
+import { assertGoalCanBeActive } from "./lib/goalLimits"
+import { resolveEntitlements } from "./lib/entitlements"
 
 const conversationState = v.union(
   v.literal("discovery"),
@@ -113,6 +114,11 @@ async function activeGenerationForUser(ctx: any, userId: string, excludeMessageI
   return pending.find((message: any) => message.legacyId !== excludeMessageId && message.generationLeaseExpiresAt > timestamp)
 }
 
+async function trackProductEvent(ctx: any, input: { userId: string; name: "conversation_started" | "evidence_gathered" | "plan_proposed" | "task_accepted" | "task_completed" | "task_deferred" | "report_viewed" | "upgrade_viewed" | "checkout_started" | "subscription_activated" | "onboarding_completed" | "feedback_submitted"; sourceId?: string; durationMs?: number; estimatedCostUsd?: number }) {
+  const entitlement = await resolveEntitlements(ctx, input.userId)
+  await ctx.db.insert("productEvents", { userId: input.userId, name: input.name, sourceId: input.sourceId, funnelVersion: "core-loop-v1", plan: entitlement.plan, durationMs: input.durationMs, estimatedCostUsd: input.estimatedCostUsd, createdAt: now() })
+}
+
 async function insertConversation(ctx: any, userId: string) {
   const user = await userForId(ctx, userId)
   if (!user || user.deletedAt || (user.accountStatus && user.accountStatus !== "active")) throw new Error("USER_NOT_FOUND: User not found")
@@ -133,6 +139,11 @@ export const createConversation = mutation({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
     await requireMember(ctx, userId, "operator:member")
+    const recent = await ctx.db.query("operatorConversations").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).order("desc").filter((q: any) => q.eq(q.field("archivedAt"), undefined)).first()
+    if (recent) {
+      const firstMessage = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", recent.legacyId)).first()
+      if (!firstMessage) return clean(recent)
+    }
     return insertConversation(ctx, userId)
   },
 })
@@ -145,6 +156,7 @@ export const ensureConversation = mutation({
       .query("operatorConversations")
       .withIndex("by_user_updated", (q: any) => q.eq("userId", userId))
       .order("desc")
+      .filter((q: any) => q.eq(q.field("archivedAt"), undefined))
       .first()
     if (existing) return clean(existing)
 
@@ -159,7 +171,7 @@ export const getWorkspace = query({
     const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
     if (!conversation) return null
 
-    const [messagePage, openTasks, goals, user, providerCircuit] = await Promise.all([
+    const [messagePage, openTasks, goals, user, providerCircuit, entitlements] = await Promise.all([
       ctx.db
         .query("operatorMessages")
         .withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId))
@@ -172,6 +184,7 @@ export const getWorkspace = query({
       ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect(),
       userForId(ctx, args.userId),
       ctx.db.query("aiProviderCircuit").withIndex("by_key", (q: any) => q.eq("key", "gemini")).unique(),
+      resolveEntitlements(ctx, args.userId),
     ])
 
     return {
@@ -184,7 +197,8 @@ export const getWorkspace = query({
         return dateOrder || a.position - b.position
       }).map(clean),
       goals: goals.sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map(clean),
-      goalLimit: goalLimitForPlan(user?.planTier),
+      goalLimit: entitlements.limits.activeGoals,
+      entitlements,
       timezone: user?.timezone ?? "UTC",
       locale: user?.locale ?? "en",
       coachTone: user?.coachTone ?? "balanced",
@@ -205,6 +219,100 @@ export const getMessagePage = query({
       .order("desc")
       .paginate(args.paginationOpts)
     return { ...result, page: result.page.reverse().map(clean) }
+  },
+})
+
+export const getTasks = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    await requireMember(ctx, userId, "operator:member")
+    const [tasks, goals, user] = await Promise.all([
+      ctx.db.query("operatorTasks").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).collect(),
+      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", userId)).collect(),
+      userForId(ctx, userId),
+    ])
+    if (!user) return null
+    return { tasks: tasks.sort((a: any, b: any) => b.updatedAt.localeCompare(a.updatedAt)).map(clean), goals: goals.map(clean), timezone: user.timezone ?? "UTC", locale: user.locale ?? "en" }
+  },
+})
+
+export const ensureWeeklyReport = mutation({
+  args: { userId: v.string(), windowStart: v.string(), windowEnd: v.string(), previousWindowStart: v.string() },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    const start = new Date(args.windowStart), end = new Date(args.windowEnd), previousStart = new Date(args.previousWindowStart)
+    if ([start, end, previousStart].some((item) => Number.isNaN(item.getTime())) || end <= start || start <= previousStart || end.getTime() - start.getTime() > 8 * 24 * 60 * 60 * 1000) throw new Error("INVALID_REPORT_WINDOW")
+    const existing = await ctx.db.query("weeklyReports").withIndex("by_user_window", (q: any) => q.eq("userId", args.userId).eq("windowStart", start.toISOString())).unique()
+    if (existing) {
+      await trackProductEvent(ctx, { userId: args.userId, name: "report_viewed", sourceId: String(existing._id) })
+      return clean(existing)
+    }
+    const [taskEvents, tasks, messages, goals] = await Promise.all([
+      ctx.db.query("operatorTaskEvents").withIndex("by_user_created", (q: any) => q.eq("userId", args.userId)).collect(),
+      ctx.db.query("operatorTasks").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect(),
+      ctx.db.query("operatorMessages").withIndex("by_user_time", (q: any) => q.eq("userId", args.userId)).collect(),
+      ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect(),
+    ])
+    const countWindow = (from: string, to: string) => {
+      const events = taskEvents.filter((item: any) => item.createdAt >= from && item.createdAt < to)
+      const turns = messages.filter((item: any) => item.role === "user" && item.createdAt >= from && item.createdAt < to)
+      const toDate = to.slice(0, 10)
+      return { completed: events.filter((item: any) => item.event === "completed").length, deferred: events.filter((item: any) => item.event === "deferred").length, dismissed: events.filter((item: any) => item.event === "dismissed").length, overdue: tasks.filter((item: any) => item.status === "todo" && item.scheduledFor < toDate).length, conversationTurns: turns.length }
+    }
+    const counts = countWindow(start.toISOString(), end.toISOString())
+    const previousCounts = countWindow(previousStart.toISOString(), start.toISOString())
+    const currentEvents = taskEvents.filter((item: any) => item.createdAt >= start.toISOString() && item.createdAt < end.toISOString())
+    const sourceTaskIds = [...new Set(currentEvents.map((item: any) => item.taskId))].slice(0, 20) as string[]
+    const sourceConversationIds = [...new Set(messages.filter((item: any) => item.role === "user" && item.createdAt >= start.toISOString() && item.createdAt < end.toISOString()).map((item: any) => item.conversationId))].slice(0, 20) as string[]
+    const observations = [
+      { id: id(), kind: "fact" as const, statement: `You completed ${counts.completed}, deferred ${counts.deferred}, and dismissed ${counts.dismissed} commitments in this source window.`, confidence: 1, taskIds: sourceTaskIds, conversationIds: [] as string[] },
+      { id: id(), kind: "fact" as const, statement: `${counts.overdue} open ${counts.overdue === 1 ? "commitment is" : "commitments are"} currently past the scheduled date.`, confidence: 1, taskIds: tasks.filter((item: any) => item.status === "todo" && item.scheduledFor < end.toISOString().slice(0, 10)).map((item: any) => item.legacyId).slice(0, 20), conversationIds: [] as string[] },
+      ...(counts.deferred + counts.dismissed > counts.completed && sourceTaskIds.length ? [{ id: id(), kind: "hypothesis" as const, statement: "The current plan may contain more commitments than fit comfortably. Consider narrowing the next week rather than trying harder.", confidence: .62, taskIds: sourceTaskIds, conversationIds: sourceConversationIds }] : []),
+    ]
+    const nextFocus = goals.filter((goal: any) => goal.status === "active").slice(0, 2).map((goal: any) => goal.title)
+    const timestamp = now()
+    const reportId = await ctx.db.insert("weeklyReports", { userId: args.userId, version: 1, windowStart: start.toISOString(), windowEnd: end.toISOString(), previousWindowStart: previousStart.toISOString(), counts, previousCounts, observations, nextFocus, createdAt: timestamp })
+    await trackProductEvent(ctx, { userId: args.userId, name: "report_viewed", sourceId: String(reportId) })
+    return clean(await ctx.db.get(reportId))
+  },
+})
+
+export const listWeeklyReports = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    await requireMember(ctx, userId, "operator:member")
+    const reports = await ctx.db.query("weeklyReports").withIndex("by_user_created", (q: any) => q.eq("userId", userId)).order("desc").take(52)
+    return reports.map(clean)
+  },
+})
+
+export const reviewWeeklyObservation = mutation({
+  args: { userId: v.string(), reportId: v.string(), observationId: v.string(), status: v.union(v.literal("accepted"), v.literal("rejected"), v.literal("corrected")), correction: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    const report = await ctx.db.get(args.reportId as any)
+    if (!report || report.userId !== args.userId || !Array.isArray(report.observations)) throw new Error("REPORT_NOT_FOUND")
+    const correction = args.correction?.replace(/\s+/g, " ").trim().slice(0, 300)
+    if (args.status === "corrected" && !correction) throw new Error("CORRECTION_REQUIRED")
+    const observations = report.observations.map((item: any) => item.id === args.observationId ? { ...item, reviewStatus: args.status, correction: args.status === "corrected" ? correction : undefined } : item)
+    await ctx.db.patch(report._id, { observations })
+    return true
+  },
+})
+
+export const submitMessageFeedback = mutation({
+  args: { userId: v.string(), messageId: v.string(), rating: v.union(v.literal("useful"), v.literal("not_useful"), v.literal("reported")), reason: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    const message = await ctx.db.query("operatorMessages").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.messageId)).unique()
+    if (!message || message.userId !== args.userId || message.role !== "assistant") throw new Error("MESSAGE_NOT_FOUND")
+    const timestamp = now()
+    const existing = await ctx.db.query("messageFeedback").withIndex("by_message_user", (q: any) => q.eq("messageId", args.messageId).eq("userId", args.userId)).unique()
+    const fields = { rating: args.rating, reason: args.reason?.replace(/\s+/g, " ").trim().slice(0, 300), updatedAt: timestamp }
+    if (existing) await ctx.db.patch(existing._id, fields)
+    else await ctx.db.insert("messageFeedback", { userId: args.userId, messageId: args.messageId, createdAt: timestamp, ...fields })
+    await trackProductEvent(ctx, { userId: args.userId, name: "feedback_submitted", sourceId: args.messageId })
+    return true
   },
 })
 
@@ -244,6 +352,18 @@ export const setConversationPinned = mutation({
   },
 })
 
+export const setConversationArchived = mutation({
+  args: { userId: v.string(), conversationId: v.string(), archived: v.boolean() },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    const conversation = await conversationForUser(ctx, args.conversationId, args.userId)
+    if (!conversation) throw new Error("CONVERSATION_NOT_FOUND: Conversation not found")
+    const timestamp = now()
+    await ctx.db.patch(conversation._id, { archivedAt: args.archived ? timestamp : undefined, pinnedAt: args.archived ? undefined : conversation.pinnedAt, updatedAt: timestamp })
+    return true
+  },
+})
+
 export const deleteConversation = mutation({
   args: { userId: v.string(), conversationId: v.string() },
   handler: async (ctx, args) => {
@@ -274,15 +394,16 @@ export const createGoal = mutation({
     const title = normalizeGoalTitle(args.title)
     const description = args.description.trim().slice(0, 500)
     if (title.length < 3) throw new Error("INVALID_GOAL_TITLE: Goal title must be at least 3 characters")
-    const [user, activeGoals, allGoals] = await Promise.all([
+    const [user, activeGoals, allGoals, entitlements] = await Promise.all([
       userForId(ctx, args.userId),
       activeGoalsForUser(ctx, args.userId),
       ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).collect(),
+      resolveEntitlements(ctx, args.userId),
     ])
     if (!user) throw new Error("USER_NOT_FOUND: User not found")
     const duplicate = allGoals.find((goal: any) => normalizedTitleKey(goal.title) === normalizedTitleKey(title))
-    if (duplicate) return { goal: clean(duplicate), limit: goalLimitForPlan(user.planTier), duplicate: true }
-    const limit = goalLimitForPlan(user.planTier)
+    if (duplicate) return { goal: clean(duplicate), limit: entitlements.limits.activeGoals, duplicate: true }
+    const limit = entitlements.limits.activeGoals
     if (activeGoals.length >= limit) throw new Error(limit === 3 ? "GOAL_LIMIT_REACHED: Free accounts can have up to 3 active goals. Upgrade to Pro to add more." : "GOAL_LIMIT_REACHED: Active goal limit reached.")
     const timestamp = now()
     const documentId = await ctx.db.insert("operatorGoals", {
@@ -437,6 +558,7 @@ export const beginTurn = mutation({
       ...(previousMessage ? {} : { title: conversationTitle(content) }),
       updatedAt: timestamp,
     })
+    await trackProductEvent(ctx, { userId: args.userId, name: previousMessage ? "evidence_gathered" : "conversation_started", sourceId: userMessageId })
     return { message: clean(await ctx.db.get(userDocumentId)), acquired: true, status: "pending" }
   },
 })
@@ -518,6 +640,7 @@ export const completeTurn = mutation({
       state: args.assistant.state,
       updatedAt: timestamp,
     })
+    if (args.assistant.taskDrafts.length) await trackProductEvent(ctx, { userId: args.userId, name: "plan_proposed", sourceId: assistantMessageId, durationMs: args.assistant.latencyMs, estimatedCostUsd: args.assistant.estimatedCostUsd })
     return clean(await ctx.db.get(assistantDocumentId))
   },
 })
@@ -541,6 +664,18 @@ export const failTurn = mutation({
       generationLeaseExpiresAt: undefined,
       failureCode: args.failureCode.replace(/[^A-Z0-9_]/g, "").slice(0, 60) || "GENERATION_FAILED",
     })
+    return true
+  },
+})
+
+export const cancelTurn = mutation({
+  args: { userId: v.string(), conversationId: v.string() },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    if (!await conversationForUser(ctx, args.conversationId, args.userId)) return false
+    const pending = await ctx.db.query("operatorMessages").withIndex("by_conversation_time", (q: any) => q.eq("conversationId", args.conversationId)).order("desc").filter((q: any) => q.eq(q.field("generationStatus"), "pending")).first()
+    if (!pending || pending.userId !== args.userId) return false
+    await ctx.db.patch(pending._id, { generationStatus: "cancelled", generationLeaseId: undefined, generationLeaseExpiresAt: undefined, failureCode: "USER_CANCELLED" })
     return true
   },
 })
@@ -581,9 +716,9 @@ export const acceptTasks = mutation({
     const timestamp = now()
     let created = 0
     const counts = new Map<string, number>()
-    const [user, initialGoals] = await Promise.all([userForId(ctx, args.userId), activeGoalsForUser(ctx, args.userId)])
+    const [user, initialGoals, entitlements] = await Promise.all([userForId(ctx, args.userId), activeGoalsForUser(ctx, args.userId), resolveEntitlements(ctx, args.userId)])
     if (!user) throw new Error("USER_NOT_FOUND: User not found")
-    const goalLimit = goalLimitForPlan(user.planTier)
+    const goalLimit = entitlements.limits.activeGoals
     const goals = [...initialGoals]
 
     const eligibleDrafts: any[] = []
@@ -631,8 +766,9 @@ export const acceptTasks = mutation({
           .collect()
         existingCount = existing.filter((task: any) => task.status !== "dismissed").length
       }
+      const taskLegacyId = id()
       await ctx.db.insert("operatorTasks", {
-        legacyId: id(),
+        legacyId: taskLegacyId,
         userId: args.userId,
         conversationId: args.conversationId,
         sourceMessageId: args.messageId,
@@ -647,12 +783,30 @@ export const acceptTasks = mutation({
         createdAt: timestamp,
         updatedAt: timestamp,
       })
+      await ctx.db.insert("operatorTaskEvents", { userId: args.userId, taskId: taskLegacyId, event: "accepted", toStatus: "todo", toDate: draft.scheduledFor, createdAt: timestamp })
       counts.set(draft.scheduledFor, existingCount + 1)
       created += 1
     }
 
     await ctx.db.patch(message._id, { tasksAcceptedAt: timestamp })
+    if (created) await trackProductEvent(ctx, { userId: args.userId, name: "task_accepted", sourceId: args.messageId })
     return { created, alreadyAccepted: false }
+  },
+})
+
+export const updateTaskProposal = mutation({
+  args: { userId: v.string(), conversationId: v.string(), messageId: v.string(), index: v.number(), title: v.string(), note: v.string(), estimatedMinutes: v.number(), completionCondition: v.string(), scheduledFor: v.string(), goalTitle: v.string() },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    const message = await ctx.db.query("operatorMessages").withIndex("by_legacy_id", (q: any) => q.eq("legacyId", args.messageId)).unique()
+    const index = Math.floor(args.index)
+    if (!message || message.userId !== args.userId || message.conversationId !== args.conversationId || message.role !== "assistant" || message.tasksAcceptedAt || index < 0 || index >= message.taskDrafts.length) throw new Error("TASK_PROPOSAL_NOT_FOUND")
+    const title = args.title.trim().slice(0, 120), completionCondition = args.completionCondition.trim().slice(0, 220)
+    if (title.length < 3 || completionCondition.length < 3 || !isRealDateOnly(args.scheduledFor)) throw new Error("TASK_PROPOSAL_INVALID")
+    const taskDrafts = [...message.taskDrafts]
+    taskDrafts[index] = { title, note: args.note.trim().slice(0, 300), estimatedMinutes: Math.min(240, Math.max(5, Math.round(args.estimatedMinutes))), completionCondition, scheduledFor: args.scheduledFor, goalTitle: normalizeGoalTitle(args.goalTitle || "Personal growth") }
+    await ctx.db.patch(message._id, { taskDrafts })
+    return true
   },
 })
 
@@ -675,6 +829,9 @@ export const setTaskStatus = mutation({
       updatedAt: timestamp,
       completedAt: args.status === "done" ? (task.completedAt ?? timestamp) : undefined,
     })
+    const event = args.status === "done" ? "completed" : args.status === "dismissed" ? "dismissed" : "reopened"
+    await ctx.db.insert("operatorTaskEvents", { userId: args.userId, taskId: args.taskId, event, fromStatus: task.status, toStatus: args.status, createdAt: timestamp })
+    if (args.status === "done") await trackProductEvent(ctx, { userId: args.userId, name: "task_completed", sourceId: args.taskId })
     return true
   },
 })
@@ -698,6 +855,7 @@ export const updateTask = mutation({
     const tasksOnDate = await ctx.db.query("operatorTasks").withIndex("by_user_date", (q: any) => q.eq("userId", args.userId).eq("scheduledFor", args.scheduledFor)).collect()
     const occupied = tasksOnDate.filter((item: any) => item.legacyId !== args.taskId && item.status !== "dismissed").length
     if (occupied >= 3) throw new Error("DAILY_TASK_LIMIT_REACHED: That day already has 3 tasks. Choose another day.")
+    const timestamp = now()
     await ctx.db.patch(task._id, {
       goalId: args.goalId,
       title,
@@ -705,8 +863,11 @@ export const updateTask = mutation({
       estimatedMinutes: Math.min(Math.max(Math.round(args.estimatedMinutes), 5), 240),
       completionCondition,
       scheduledFor: args.scheduledFor,
-      updatedAt: now(),
+      updatedAt: timestamp,
     })
+    const movedLater = args.scheduledFor > task.scheduledFor
+    await ctx.db.insert("operatorTaskEvents", { userId: args.userId, taskId: args.taskId, event: movedLater ? "deferred" : args.scheduledFor !== task.scheduledFor ? "rescheduled" : "edited", fromStatus: task.status, toStatus: task.status, fromDate: task.scheduledFor, toDate: args.scheduledFor, createdAt: timestamp })
+    if (movedLater) await trackProductEvent(ctx, { userId: args.userId, name: "task_deferred", sourceId: args.taskId })
     return clean(await ctx.db.get(task._id))
   },
 })

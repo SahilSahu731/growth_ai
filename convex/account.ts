@@ -3,6 +3,8 @@ import { makeFunctionReference, mutationGeneric as mutation, queryGeneric as que
 import { v } from "convex/values"
 import { requireMember } from "./lib/serverAuth"
 import { collectOwnedRows } from "./lib/ownedData"
+import { resolveEntitlements } from "./lib/entitlements"
+import { enqueueEmail } from "./lib/email"
 
 function clean(document: any) {
   if (!document) return null
@@ -35,11 +37,15 @@ export const getOverview = query({
           if (Boolean(a.pinnedAt) !== Boolean(b.pinnedAt)) return a.pinnedAt ? -1 : 1
           return b.updatedAt.localeCompare(a.updatedAt)
         })
-        .map((conversation: any) => ({ id: conversation.legacyId, title: conversation.title, pinned: Boolean(conversation.pinnedAt) })),
+        .map((conversation: any) => ({ id: conversation.legacyId, title: conversation.title, pinned: Boolean(conversation.pinnedAt), archived: Boolean(conversation.archivedAt) })),
       preferences: {
         coachTone: user.coachTone ?? "balanced",
         timezone: user.timezone ?? "UTC",
         emailNotifications: user.emailNotifications ?? false,
+        notificationQuietStart: user.notificationQuietStart ?? "21:00",
+        notificationQuietEnd: user.notificationQuietEnd ?? "08:00",
+        notificationFrequency: user.notificationFrequency ?? "off",
+        notificationSnoozedUntil: user.notificationSnoozedUntil ?? null,
         messageRetentionDays: user.messageRetentionDays ?? 0,
         termsAcceptedVersion: user.termsAcceptedVersion ?? null,
         privacyAcceptedVersion: user.privacyAcceptedVersion ?? null,
@@ -55,6 +61,10 @@ export const updatePreferences = mutation({
     coachTone: v.union(v.literal("supportive"), v.literal("balanced"), v.literal("blunt")),
     timezone: v.string(),
     emailNotifications: v.boolean(),
+    notificationQuietStart: v.optional(v.string()),
+    notificationQuietEnd: v.optional(v.string()),
+    notificationFrequency: v.optional(v.union(v.literal("off"), v.literal("weekly"))),
+    notificationSnoozedUntil: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireMember(ctx, args.userId, "account:write")
@@ -67,14 +77,24 @@ export const updatePreferences = mutation({
       throw new Error("Choose a valid timezone")
     }
     const updatedAt = new Date().toISOString()
+    const quietStart = args.notificationQuietStart ?? user.notificationQuietStart ?? "21:00"
+    const quietEnd = args.notificationQuietEnd ?? user.notificationQuietEnd ?? "08:00"
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(quietStart) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(quietEnd)) throw new Error("Choose valid quiet hours")
+    const notificationFrequency = args.notificationFrequency ?? user.notificationFrequency ?? "off"
+    const notificationSnoozedUntil = args.notificationSnoozedUntil?.trim() || undefined
+    if (notificationSnoozedUntil && (Number.isNaN(Date.parse(notificationSnoozedUntil)) || notificationSnoozedUntil.length > 40)) throw new Error("Choose a valid snooze date")
     await ctx.db.patch(user._id, {
       coachTone: args.coachTone,
       timezone,
       emailNotifications: args.emailNotifications,
+      notificationQuietStart: quietStart,
+      notificationQuietEnd: quietEnd,
+      notificationFrequency,
+      notificationSnoozedUntil,
       updatedAt,
     })
     await ctx.db.insert("privacyEvents", { userId: args.userId, type: "preferences.updated", details: `coachTone=${args.coachTone};timezone=${timezone}`, createdAt: updatedAt })
-    return { coachTone: args.coachTone, timezone, emailNotifications: args.emailNotifications, updatedAt }
+    return { coachTone: args.coachTone, timezone, emailNotifications: args.emailNotifications, notificationQuietStart: quietStart, notificationQuietEnd: quietEnd, notificationFrequency, notificationSnoozedUntil, updatedAt }
   },
 })
 
@@ -84,12 +104,19 @@ export const exportUserData = query({
     await requireMember(ctx, userId, "account:export")
     const user = await userById(ctx, userId)
     if (!user) return null
-    const [conversations, messages, goals, tasks, subscriptions, privacyEvents, accessHistory, dataSubjectRequests] = await Promise.all([
+    const [conversations, messages, goals, tasks, taskEvents, weeklyReports, growthMap, messageFeedback, subscriptions, entitlementGrants, productEvents, emailDeliveries, privacyEvents, accessHistory, dataSubjectRequests] = await Promise.all([
       collectOwnedRows(ctx, "operatorConversations", userId),
       collectOwnedRows(ctx, "operatorMessages", userId),
       collectOwnedRows(ctx, "operatorGoals", userId),
       collectOwnedRows(ctx, "operatorTasks", userId),
+      collectOwnedRows(ctx, "operatorTaskEvents", userId),
+      collectOwnedRows(ctx, "weeklyReports", userId),
+      collectOwnedRows(ctx, "growthMapItems", userId),
+      collectOwnedRows(ctx, "messageFeedback", userId),
       ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
+      collectOwnedRows(ctx, "entitlementGrants", userId),
+      collectOwnedRows(ctx, "productEvents", userId),
+      collectOwnedRows(ctx, "emailDeliveries", userId),
       ctx.db.query("privacyEvents").withIndex("by_user_created", (q: any) => q.eq("userId", userId)).collect(),
       ctx.db.query("adminAuditLogs").withIndex("by_target_created", (q: any) => q.eq("targetId", userId)).collect(),
       ctx.db.query("dataSubjectRequests").withIndex("by_user_created", (q: any) => q.eq("userId", userId)).collect(),
@@ -104,7 +131,14 @@ export const exportUserData = query({
       messages: messages.map(clean),
       goals: goals.map(clean),
       tasks: tasks.map(clean),
+      taskHistory: taskEvents.map(clean),
+      weeklyReports: weeklyReports.map(clean),
+      growthMap: growthMap.map(clean),
+      messageFeedback: messageFeedback.map(clean),
       subscriptions: subscriptions.map(clean),
+      complimentaryEntitlements: entitlementGrants.map(clean),
+      productAnalytics: productEvents.map(clean),
+      emailDeliveryHistory: emailDeliveries.map((item: any) => clean({ ...item, variablesJson: undefined })),
       preferenceAndPrivacyHistory: privacyEvents.map(clean),
       supportAccessHistory: accessHistory.map((item: any) => ({ action: item.action, reason: item.reason ?? null, ticket: item.ticket ?? null, result: item.result ?? null, accessedAt: item.createdAt })),
       dataSubjectRequests: dataSubjectRequests.map(clean),
@@ -124,6 +158,8 @@ export const acceptLegal = mutation({
       privacyAcceptedVersion: args.privacyVersion.slice(0, 40), aiNoticeAcceptedVersion: args.aiNoticeVersion.slice(0, 40), updatedAt: timestamp,
     })
     await ctx.db.insert("privacyEvents", { userId: args.userId, type: "legal.accepted", details: `terms=${args.termsVersion};privacy=${args.privacyVersion};ai=${args.aiNoticeVersion}`, createdAt: timestamp })
+    const entitlement = await resolveEntitlements(ctx, args.userId)
+    await ctx.db.insert("productEvents", { userId: args.userId, name: "onboarding_completed", funnelVersion: "core-loop-v1", plan: entitlement.plan, createdAt: timestamp })
     return true
   },
 })
@@ -151,15 +187,22 @@ export const clearAiMemory = mutation({
     const conversations = await collectOwnedRows(ctx, "operatorConversations", userId)
     const messages = await collectOwnedRows(ctx, "operatorMessages", userId)
     const tasks = await collectOwnedRows(ctx, "operatorTasks", userId)
+    const [feedback, reports, mapItems] = await Promise.all([collectOwnedRows(ctx, "messageFeedback", userId), collectOwnedRows(ctx, "weeklyReports", userId), collectOwnedRows(ctx, "growthMapItems", userId)])
     const conversationTitles = new Map(conversations.map((item: any) => [item.legacyId, item.title]))
     for (const task of tasks) {
       if (task.conversationId) await ctx.db.patch(task._id, { originConversationTitle: task.originConversationTitle ?? conversationTitles.get(task.conversationId), conversationId: undefined, sourceMessageId: undefined })
     }
     for (const message of messages) await ctx.db.delete(message._id)
     for (const conversation of conversations) await ctx.db.delete(conversation._id)
+    for (const item of feedback) await ctx.db.delete(item._id)
+    for (const report of reports) await ctx.db.delete(report._id)
+    for (const item of mapItems) {
+      if (!item.userConfirmed) await ctx.db.delete(item._id)
+      else if (item.sourceConversationIds.length) await ctx.db.patch(item._id, { sourceConversationIds: [], updatedAt: new Date().toISOString() })
+    }
     const timestamp = new Date().toISOString()
     await ctx.db.patch(user._id, { aiMemoryClearedAt: timestamp, updatedAt: timestamp })
-    await ctx.db.insert("privacyEvents", { userId, type: "ai_memory.cleared", details: `${conversations.length} conversations;${messages.length} messages`, createdAt: timestamp })
+    await ctx.db.insert("privacyEvents", { userId, type: "ai_memory.cleared", details: `${conversations.length} conversations;${messages.length} messages;${reports.length} reports;${feedback.length} feedback records`, createdAt: timestamp })
     return { conversations: conversations.length, messages: messages.length }
   },
 })
@@ -185,7 +228,8 @@ export const requestAccountDeletion = mutation({
     const user = await userById(ctx, args.userId)
     if (!user || user.email.toLowerCase() !== args.confirmationEmail.trim().toLowerCase()) return null
     const subscriptions = await ctx.db.query("subscriptions").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).collect()
-    if (subscriptions.some((item: any) => ["created", "pending", "authenticated", "active"].includes(item.status))) throw new Error("ACTIVE_SUBSCRIPTION")
+    const nowIso = new Date().toISOString()
+    if (subscriptions.some((item: any) => ["created", "pending", "authenticated", "active"].includes(item.status) || item.entitlementState === "active" && (!item.accessUntil || item.accessUntil > nowIso) || item.entitlementState === "grace" && item.graceUntil > nowIso)) throw new Error("ACTIVE_SUBSCRIPTION")
     const existing = await ctx.db.query("accountDeletionJobs").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).unique()
     if (existing && existing.status !== "failed") return { id: existing.legacyId, status: existing.status }
     const timestamp = new Date().toISOString()
@@ -194,6 +238,7 @@ export const requestAccountDeletion = mutation({
     if (existing) await ctx.db.patch(existing._id, { status: "queued", stage: "queued", updatedAt: timestamp, errorCode: undefined })
     else await ctx.db.insert("accountDeletionJobs", { legacyId: jobId, userId: args.userId, status: "queued", stage: "queued", attempts: 0, createdAt: timestamp, updatedAt: timestamp })
     await ctx.scheduler.runAfter(0, processDeletion, { userId: args.userId, jobId })
+    await enqueueEmail(ctx, { idempotencyKey: `deletion:${jobId}:queued`, userId: args.userId, toEmail: user.email, kind: "deletion_status", mandatory: true, variables: { detail: "Your account deletion request was verified and queued. Active access has been disabled while deletion is processed.", accountUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://growthai.app"}/privacy` } })
     return { id: jobId, status: "queued" as const }
   },
 })

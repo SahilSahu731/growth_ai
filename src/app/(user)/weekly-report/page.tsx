@@ -1,50 +1,29 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
-import { ArrowRight, CheckCircle2, MessageSquareText, Sparkles } from "lucide-react"
+import { ArrowDownRight, ArrowRight, ArrowUpRight, CheckCircle2, Clock3, MessageSquareText, Minus, Sparkles } from "lucide-react"
 
+import { reviewWeeklyObservationAction } from "@/app/(user)/chat/actions"
 import { authOptions } from "@/auth"
-import { ensureOperatorConversation, getOperatorWeeklyActivity, getOperatorWorkspace } from "@/lib/data/operator"
+import { addDateDays, dateKeyInTimeZone, localDateStartUtc, sevenDayWindowStart } from "@/lib/date-time"
+import { ensureOperatorConversation, ensureOperatorWeeklyReport, getOperatorWorkspace } from "@/lib/data/operator"
 
 export const dynamic = "force-dynamic"
-export const metadata = { title: "Weekly report" }
+export const metadata = { title: "Weekly review" }
 
 export default async function WeeklyReportPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) redirect("/login")
   const conversation = await ensureOperatorConversation(session.user.id)
-  const [workspace, activity] = await Promise.all([
-    getOperatorWorkspace(session.user.id, conversation.id),
-    getOperatorWeeklyActivity(session.user.id),
-  ])
+  const workspace = await getOperatorWorkspace(session.user.id, conversation.id)
   if (!workspace) redirect("/chat")
-
-  return (
-    <div className="mx-auto w-full max-w-5xl space-y-7">
-      <section>
-        <p className="text-[10px] font-bold uppercase tracking-[.18em] text-primary">Last seven days</p>
-        <h1 className="mt-3 text-4xl font-black tracking-[-.045em] text-neutral-950 sm:text-5xl">Your weekly report.</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-500">A factual view of the conversation and work currently in motion—not a score for your life.</p>
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-3">
-        <Metric icon={MessageSquareText} label="Conversation turns" value={String(activity?.conversationTurns ?? 0)} />
-        <Metric icon={CheckCircle2} label="Open approved tasks" value={String(activity?.openTasks ?? 0)} />
-        <Metric icon={Sparkles} label="Active goals" value={String(activity?.activeGoals ?? 0)} />
-      </section>
-
-      <section className="rounded-3xl border border-neutral-200 bg-white p-7 shadow-sm sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[.15em] text-neutral-400">GrowthAI synthesis</p>
-        {activity?.enoughData ? (
-          <><h2 className="mt-4 text-2xl font-black tracking-tight">There is enough context for a useful review.</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-500">Ask GrowthAI to review what changed, what was repeatedly blocked, and which assumption the next plan should test.</p><Link href={`/chat?conversation=${encodeURIComponent(conversation.id)}`} className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground">Generate in chat<ArrowRight className="size-4" /></Link></>
-        ) : (
-          <><h2 className="mt-4 text-2xl font-black tracking-tight">Still gathering evidence.</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-500">A trustworthy report needs more than one answer. Keep talking naturally; GrowthAI will synthesize the week after enough real context exists.</p><Link href={`/chat?conversation=${encodeURIComponent(conversation.id)}`} className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-neutral-900">Continue the conversation<ArrowRight className="size-4" /></Link></>
-        )}
-      </section>
-    </div>
-  )
+  const endKey = addDateDays(dateKeyInTimeZone(new Date(), workspace.timezone), 1)
+  const windowStart = sevenDayWindowStart(workspace.timezone)
+  const windowEnd = localDateStartUtc(endKey, workspace.timezone)
+  const previousWindowStart = new Date(windowStart.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const report = await ensureOperatorWeeklyReport({ userId: session.user.id, windowStart: windowStart.toISOString(), windowEnd: windowEnd.toISOString(), previousWindowStart: previousWindowStart.toISOString() })
+  return <div className="mx-auto w-full max-w-5xl space-y-8"><section><p className="text-[10px] font-bold uppercase tracking-[.18em] text-primary">Source window · {windowStart.toLocaleDateString()}–{new Date(windowEnd.getTime() - 1).toLocaleDateString()}</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] text-neutral-950 sm:text-5xl">Your weekly review.</h1><p className="mt-3 max-w-2xl text-base leading-7 text-neutral-500">Facts come from task and conversation records. Interpretations are labeled, uncertain, and correctable—not a score for your life.</p></section><section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"><Metric label="Completed" value={report.counts.completed} previous={report.previousCounts.completed} icon={CheckCircle2} /><Metric label="Deferred" value={report.counts.deferred} previous={report.previousCounts.deferred} icon={Clock3} /><Metric label="Dismissed" value={report.counts.dismissed} previous={report.previousCounts.dismissed} icon={Minus} /><Metric label="Overdue" value={report.counts.overdue} previous={report.previousCounts.overdue} icon={Clock3} /><Metric label="Conversation turns" value={report.counts.conversationTurns} previous={report.previousCounts.conversationTurns} icon={MessageSquareText} /></section><section className="space-y-3"><div><h2 className="text-xl font-semibold text-neutral-950">Observations and hypotheses</h2><p className="mt-1 text-sm text-neutral-500">Open the cited records, then accept, reject, or correct an interpretation.</p></div>{report.observations.map((observation) => <article key={observation.id} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase tracking-wide ${observation.kind === "fact" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{observation.kind}</span><span className="text-[10px] text-neutral-400">{Math.round(observation.confidence * 100)}% confidence</span>{observation.reviewStatus ? <span className="text-[10px] font-semibold capitalize text-primary">{observation.reviewStatus}</span> : null}</div><p className="mt-3 text-sm leading-7 text-neutral-700">{observation.statement}</p>{observation.correction ? <p className="mt-3 rounded-xl bg-neutral-50 p-3 text-xs leading-5 text-neutral-600"><strong>Your correction:</strong> {observation.correction}</p> : null}<div className="mt-4 flex flex-wrap items-center gap-2 text-[10px]"><span className="font-semibold text-neutral-500">Sources:</span>{observation.taskIds.slice(0, 5).map((id) => <Link key={id} href="/tasks" className="rounded-full border border-neutral-200 px-2 py-1 text-neutral-500 hover:text-neutral-900">Task {id.slice(0, 6)}</Link>)}{observation.conversationIds.slice(0, 5).map((id) => <Link key={id} href={`/chat?conversation=${encodeURIComponent(id)}`} className="rounded-full border border-neutral-200 px-2 py-1 text-neutral-500 hover:text-neutral-900">Conversation</Link>)}{!observation.taskIds.length && !observation.conversationIds.length ? <span className="text-neutral-400">Current task state</span> : null}</div>{observation.kind === "hypothesis" ? <div className="mt-4 flex flex-wrap gap-2"><ReviewButton reportId={report.id} observationId={observation.id} status="accepted" label="This fits" /><ReviewButton reportId={report.id} observationId={observation.id} status="rejected" label="Reject" /><form action={reviewWeeklyObservationAction} className="flex flex-1 gap-2"><input type="hidden" name="reportId" value={report.id} /><input type="hidden" name="observationId" value={observation.id} /><input type="hidden" name="status" value="corrected" /><input name="correction" minLength={2} maxLength={300} required placeholder="Correct this interpretation" className="h-9 min-w-48 flex-1 rounded-full border border-neutral-200 px-3 text-xs outline-none focus:border-primary" /><button className="rounded-full bg-neutral-950 px-3 text-[10px] font-semibold text-white">Save correction</button></form></div> : null}</article>)}</section><section className="rounded-3xl border border-neutral-200 bg-neutral-950 p-7 text-white sm:p-9"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-primary">Bounded next-week focus</p><h2 className="mt-3 text-2xl font-semibold">Keep the next step deliberately small.</h2>{report.nextFocus.length ? <ul className="mt-5 space-y-2">{report.nextFocus.map((focus) => <li key={focus} className="flex items-center gap-2 text-sm text-white/70"><Sparkles className="size-4 text-primary" />{focus}</li>)}</ul> : <p className="mt-4 text-sm leading-6 text-white/50">No active goal is selected. Choose one direction before adding more commitments.</p>}<Link href={`/chat?conversation=${encodeURIComponent(conversation.id)}`} className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-semibold text-primary-foreground">Replan in chat<ArrowRight className="size-4" /></Link></section><p className="text-center text-[10px] text-neutral-400">Report version {report.version} · generated {new Date(report.createdAt).toLocaleString()} · source window is immutable</p></div>
 }
 
-function Metric({ icon: Icon, label, value }: { icon: typeof Sparkles; label: string; value: string }) {
-  return <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><Icon className="size-4 text-primary" /><p className="mt-5 text-xl font-black capitalize text-neutral-950">{value}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</p></div>
-}
+function Metric({ label, value, previous, icon: Icon }: { label: string; value: number; previous: number; icon: typeof Sparkles }) { const delta = value - previous; const DeltaIcon = delta > 0 ? ArrowUpRight : delta < 0 ? ArrowDownRight : Minus; return <article className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"><Icon className="size-4 text-primary" /><p className="mt-4 text-2xl font-semibold text-neutral-950">{value}</p><p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">{label}</p><p className="mt-3 flex items-center gap-1 text-[10px] text-neutral-400"><DeltaIcon className="size-3" />{delta === 0 ? "Same as prior week" : `${Math.abs(delta)} ${delta > 0 ? "more" : "fewer"}`}</p></article> }
+function ReviewButton({ reportId, observationId, status, label }: { reportId: string; observationId: string; status: "accepted" | "rejected"; label: string }) { return <form action={reviewWeeklyObservationAction}><input type="hidden" name="reportId" value={reportId} /><input type="hidden" name="observationId" value={observationId} /><input type="hidden" name="status" value={status} /><button className="h-9 rounded-full border border-neutral-200 px-3 text-[10px] font-semibold text-neutral-600 hover:border-primary">{label}</button></form> }

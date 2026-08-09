@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { AlertTriangle, CreditCard, Gift, ReceiptText } from "lucide-react"
+import { AlertTriangle, CreditCard, Gift } from "lucide-react"
 
 import { AdminBillingReplayForm } from "@/components/admin/admin-forms"
 import { AdminPagination } from "@/components/admin/admin-pagination"

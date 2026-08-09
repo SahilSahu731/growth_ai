@@ -96,6 +96,21 @@ export type OperatorWorkspace = {
   locale: string
   coachTone: "supportive" | "balanced" | "blunt"
   providerCircuitOpen: boolean
+  entitlements: { plan: "free" | "pro" | "founder" | "team"; source: string; grace: boolean; limits: { activeGoals: number }; entitlements: Record<string, boolean> }
+}
+
+export type OperatorWeeklyReport = {
+  id: string
+  userId: string
+  version: number
+  windowStart: string
+  windowEnd: string
+  previousWindowStart: string
+  counts: { completed: number; deferred: number; dismissed: number; overdue: number; conversationTurns: number }
+  previousCounts: { completed: number; deferred: number; dismissed: number; overdue: number; conversationTurns: number }
+  observations: Array<{ id: string; kind: "fact" | "hypothesis"; statement: string; confidence: number; taskIds: string[]; conversationIds: string[]; reviewStatus?: "accepted" | "rejected" | "corrected"; correction?: string }>
+  nextFocus: string[]
+  createdAt: string
 }
 
 export type OperatorWeeklyActivity = {

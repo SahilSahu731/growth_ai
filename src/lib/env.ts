@@ -54,6 +54,10 @@ const environmentSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: optionalString,
   RAZORPAY_PLAN_ID_PRO_MONTHLY: optionalString,
   RAZORPAY_PLAN_ID_FOUNDER: optionalString,
+  BILLING_CHECKOUT_ENABLED: optionalString,
+  RESEND_API_KEY: optionalString,
+  RESEND_WEBHOOK_SECRET: optionalString,
+  TRANSACTIONAL_EMAIL_FROM: optionalString,
 }).passthrough()
 
 export type GrowthAiEnvironment = z.infer<typeof environmentSchema>
@@ -221,6 +225,10 @@ export function validateEnvironment(
   if (razorpayValues.some(Boolean) && !razorpayValues.every(Boolean)) {
     errors.push("Razorpay must be either fully configured or fully disabled; partial configuration is unsafe.")
   }
+  if (environment.BILLING_CHECKOUT_ENABLED && !["true", "false"].includes(environment.BILLING_CHECKOUT_ENABLED)) errors.push("BILLING_CHECKOUT_ENABLED must be true or false.")
+  if (environment.BILLING_CHECKOUT_ENABLED === "true" && !razorpayValues.every(Boolean)) errors.push("Checkout cannot be enabled until Razorpay is fully configured.")
+  const emailValues = [environment.RESEND_API_KEY, environment.RESEND_WEBHOOK_SECRET, environment.TRANSACTIONAL_EMAIL_FROM]
+  if (emailValues.some(Boolean) && !emailValues.every(Boolean)) errors.push("Transactional email must be fully configured or fully disabled.")
 
   return { environment, errors: [...new Set(errors)], warnings: [...new Set(warnings)] }
 }

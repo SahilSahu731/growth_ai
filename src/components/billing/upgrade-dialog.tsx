@@ -26,7 +26,7 @@ export function UpgradeDialogProvider({ children, authenticated, currentPlan }: 
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const paid = currentPlan !== "free"
-  const context = useMemo<UpgradeContextValue>(() => ({ openUpgrade: (requestedFeature, plan = "pro") => { setFeature(requestedFeature ?? null); setSelected(plan); setError(null); setOpen(true) } }), [])
+  const context = useMemo<UpgradeContextValue>(() => ({ openUpgrade: (requestedFeature, plan = "pro") => { setFeature(requestedFeature ?? null); setSelected(plan); setError(null); setOpen(true); if (authenticated) void fetch("/api/analytics/upgrade", { method: "POST" }).catch(() => undefined) } }), [authenticated])
 
   async function checkout() {
     setPending(true)

@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { SquarePen } from "lucide-react"
+import { Archive, Search, SquarePen } from "lucide-react"
 import { ConversationHistoryItem } from "@/components/user/conversation-history-item"
 import { UpgradeDialogProvider, UpgradeTrigger } from "@/components/billing/upgrade-dialog"
 
@@ -42,7 +42,7 @@ type UserSidebarShellProps = {
     image: string | null
     planTier: "free" | "pro" | "founder"
   }
-  conversations: Array<{ id: string; title: string; pinned: boolean }>
+  conversations: Array<{ id: string; title: string; pinned: boolean; archived: boolean }>
 }
 
 const NAV_ITEMS = [
@@ -78,12 +78,15 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [conversationQuery, setConversationQuery] = useState("")
+  const [showArchived, setShowArchived] = useState(false)
   const isChat = pathname.startsWith("/chat")
   const isSettings = pathname.startsWith("/settings")
   const activeConversationId = searchParams.get("conversation")
   const displayName = user.name ?? "GrowthAI member"
   const displayEmail = user.email ?? ""
   const initials = useMemo(() => getInitials(user.name ?? user.email ?? "User"), [user.email, user.name])
+  const visibleConversations = useMemo(() => conversations.filter((item) => item.archived === showArchived && (!conversationQuery.trim() || item.title.toLowerCase().includes(conversationQuery.trim().toLowerCase()))), [conversations, conversationQuery, showArchived])
 
   async function handleSignOut() {
     setIsSigningOut(true)
@@ -152,8 +155,8 @@ export function UserSidebarShell({ children, user, conversations }: UserSidebarS
 
             {conversations.length ? (
               <SidebarGroup className="space-y-1 border-t border-neutral-200 px-0 py-3 group-data-[collapsible=icon]:hidden">
-                <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400">Recent chats</p>
-                {conversations.map((conversation) => <ConversationHistoryItem key={conversation.id} conversation={conversation} active={activeConversationId === conversation.id} />)}
+                <div className="flex items-center justify-between px-2 pb-1"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-neutral-400">{showArchived ? "Archived chats" : "Recent chats"}</p><button type="button" onClick={() => setShowArchived((value) => !value)} className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-900"><Archive className="size-3" />{showArchived ? "Recent" : "Archive"}</button></div><label className="relative mb-2 block"><Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" /><input value={conversationQuery} onChange={(event) => setConversationQuery(event.target.value)} placeholder="Search chats" className="h-9 w-full rounded-lg border border-neutral-200 bg-white pl-8 pr-2 text-xs outline-none focus:border-primary" /></label>
+                {visibleConversations.map((conversation) => <ConversationHistoryItem key={conversation.id} conversation={conversation} active={activeConversationId === conversation.id} />)}{!visibleConversations.length ? <p className="px-2 py-4 text-center text-[10px] text-neutral-400">No matching chats.</p> : null}
               </SidebarGroup>
             ) : null}
           </SidebarContent>

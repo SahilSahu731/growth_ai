@@ -10,5 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/security`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${baseUrl}/ai-safety`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${baseUrl}/subprocessors`, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${baseUrl}/contact`, changeFrequency: "monthly", priority: 0.5 },
   ]
 }

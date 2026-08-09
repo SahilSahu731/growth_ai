@@ -267,7 +267,7 @@ export const updateUser = mutation({
 })
 
 export const grantComplimentaryAccess = mutation({
-  args: { actor: v.string(), userId: v.string(), planTier: v.union(v.literal("pro"), v.literal("founder")), source: v.union(v.literal("admin_comp"), v.literal("design_partner"), v.literal("support_remediation")), reason: v.string(), startsAt: v.string(), expiresAt: v.string() },
+  args: { actor: v.string(), userId: v.string(), planTier: v.literal("pro"), source: v.union(v.literal("admin_comp"), v.literal("design_partner"), v.literal("support_remediation")), reason: v.string(), startsAt: v.string(), expiresAt: v.string() },
   handler: async (ctx, args) => {
     await requireScope(ctx, "admin", "admin:billing")
     const user = await userById(ctx, args.userId)
@@ -403,7 +403,7 @@ export const deleteUser = mutation({
       throw new Error("Confirmation email does not match")
     }
     const deleted: Record<string, number> = {}
-    for (const table of ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions", "billingCheckoutLocks", "aiDailyUsage"] as const) {
+    for (const table of ["operatorMessages", "messageFeedback", "operatorTasks", "operatorTaskEvents", "weeklyReports", "growthMapItems", "productEvents", "operatorGoals", "operatorConversations", "entitlementGrants", "subscriptions", "billingCheckoutLocks", "emailDeliveries", "aiDailyUsage", "privacyEvents", "dataSubjectRequests", "accountDeletionJobs"] as const) {
       const rows = await collectOwnedRows(ctx, table, args.userId)
       deleted[table] = rows.length
       for (const row of rows) await ctx.db.delete(row._id)
@@ -446,6 +446,39 @@ export const getBilling = query({
       page,
       pages: Math.max(1, Math.ceil(sorted.length / pageSize)),
     }
+  },
+})
+
+export const getProductAnalytics = query({
+  args: { days: v.number() },
+  handler: async (ctx, args) => {
+    await requireScope(ctx, "admin", "admin:read")
+    const days = Math.min(90, Math.max(7, Math.floor(args.days)))
+    const since = new Date(Date.now() - days * 86_400_000).toISOString()
+    const [events, messages, usage, subscriptions] = await Promise.all([
+      ctx.db.query("productEvents").collect(),
+      ctx.db.query("operatorMessages").collect(),
+      ctx.db.query("aiDailyUsage").collect(),
+      ctx.db.query("subscriptions").collect(),
+    ])
+    const currentEvents = events.filter((item: any) => item.createdAt >= since)
+    const counts = Object.fromEntries(["conversation_started", "evidence_gathered", "plan_proposed", "task_accepted", "task_completed", "task_deferred", "report_viewed", "upgrade_viewed", "checkout_started", "subscription_activated", "onboarding_completed", "feedback_submitted"].map((name) => [name, currentEvents.filter((item: any) => item.name === name).length]))
+    const activeUsers = new Set(currentEvents.map((item: any) => item.userId))
+    const activatedUsers = new Set(currentEvents.filter((item: any) => item.name === "task_accepted").map((item: any) => item.userId))
+    const retained = (minimumDays: number) => [...activatedUsers].filter((userId) => {
+      const first = currentEvents.filter((item: any) => item.userId === userId).sort((a: any, b: any) => a.createdAt.localeCompare(b.createdAt))[0]
+      return first && currentEvents.some((item: any) => item.userId === userId && new Date(item.createdAt).getTime() >= new Date(first.createdAt).getTime() + minimumDays * 86_400_000)
+    }).length
+    const latencies = messages.filter((item: any) => item.role === "assistant" && item.createdAt >= since && typeof item.latencyMs === "number").map((item: any) => item.latencyMs).sort((a: number, b: number) => a - b)
+    const p95LatencyMs = latencies.length ? latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * .95) - 1)] : 0
+    const currentUsage = usage.filter((item: any) => item.date >= since.slice(0, 10))
+    const totalCostUsd = currentUsage.reduce((sum: number, item: any) => sum + (item.estimatedCostUsd ?? 0), 0)
+    const fallbacks = messages.filter((item: any) => item.role === "assistant" && item.createdAt >= since && item.generationOutcome && item.generationOutcome !== "provider_success").length
+    const safetyInterventions = messages.filter((item: any) => item.role === "assistant" && item.createdAt >= since && typeof item.modelName === "string" && item.modelName.startsWith("deterministic-safety")).length
+    const reportUsers = new Set(currentEvents.filter((item: any) => item.name === "report_viewed").map((item: any) => item.userId)).size
+    const nowIso = new Date().toISOString()
+    const paidRetained = new Set(subscriptions.filter((item: any) => item.createdAt < new Date(Date.now() - 28 * 86_400_000).toISOString() && (item.entitlementState === "active" && (!item.accessUntil || item.accessUntil > nowIso) || item.entitlementState === "grace" && item.graceUntil > nowIso)).map((item: any) => item.userId)).size
+    return { days, counts, activeUsers: activeUsers.size, activatedUsers: activatedUsers.size, day1Retained: retained(1), day7Retained: retained(7), week4Retained: retained(28), paidRetained, weeklyReportUsers: reportUsers, p95LatencyMs, fallbackResponses: fallbacks, safetyInterventions, totalCostUsd, costPerActiveUserUsd: activeUsers.size ? totalCostUsd / activeUsers.size : 0, generatedAt: new Date().toISOString() }
   },
 })
 

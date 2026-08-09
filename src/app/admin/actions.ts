@@ -147,8 +147,8 @@ export async function grantComplimentaryAccessAction(_state: AdminActionState, f
     const reason = text(formData, "reason")
     const startsAt = text(formData, "startsAt")
     const expiresAt = text(formData, "expiresAt")
-    if (!userId || !["pro", "founder"].includes(planTier) || !["admin_comp", "design_partner", "support_remediation"].includes(source) || reason.length < 10 || !startsAt || !expiresAt) return { error: "Complete the grant reason, source, and access window." }
-    await grantAdminComplimentaryAccess({ actor: session.email, userId, planTier: planTier as "pro" | "founder", source: source as "admin_comp" | "design_partner" | "support_remediation", reason, startsAt, expiresAt })
+    if (!userId || planTier !== "pro" || !["admin_comp", "design_partner", "support_remediation"].includes(source) || reason.length < 10 || !startsAt || !expiresAt) return { error: "Complete the grant reason, source, and access window." }
+    await grantAdminComplimentaryAccess({ actor: session.email, userId, planTier: "pro", source: source as "admin_comp" | "design_partner" | "support_remediation", reason, startsAt, expiresAt })
     revalidatePath(`/admin/users/${userId}`)
     revalidatePath("/admin/billing")
     return { success: "Complimentary access granted and audited." }

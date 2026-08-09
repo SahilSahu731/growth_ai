@@ -22,7 +22,8 @@ export async function updateSettingsAction(_state: SettingsActionState, formData
   const legacyForm = !section
   const coachTone = (section === "coach" || legacyForm ? field(formData, "coachTone") : account.preferences.coachTone) as CoachTone
   const timezone = section === "general" || legacyForm ? field(formData, "timezone") : account.preferences.timezone
-  const emailNotifications = legacyForm ? formData.get("emailNotifications") === "on" : account.preferences.emailNotifications
+  const notificationSection = section === "notifications"
+  const emailNotifications = legacyForm || notificationSection ? formData.get("emailNotifications") === "on" : account.preferences.emailNotifications
   if (!["supportive", "balanced", "blunt"].includes(coachTone)) return { error: "Choose a conversation style." }
   try {
     await updateAccountPreferences({
@@ -30,6 +31,10 @@ export async function updateSettingsAction(_state: SettingsActionState, formData
       coachTone,
       timezone,
       emailNotifications,
+      notificationQuietStart: notificationSection ? field(formData, "notificationQuietStart") : account.preferences.notificationQuietStart,
+      notificationQuietEnd: notificationSection ? field(formData, "notificationQuietEnd") : account.preferences.notificationQuietEnd,
+      notificationFrequency: notificationSection && emailNotifications ? "weekly" : "off",
+      notificationSnoozedUntil: notificationSection ? (field(formData, "notificationSnoozedUntil") ? `${field(formData, "notificationSnoozedUntil")}T23:59:59.999Z` : undefined) : account.preferences.notificationSnoozedUntil ?? undefined,
     })
     revalidatePath("/settings")
     return { success: "Preferences saved." }

@@ -26,7 +26,7 @@ export const enforceMessageRetention = internalMutation({
   },
 })
 
-const deletionStages: UserOwnedTable[] = ["operatorMessages", "operatorTasks", "operatorGoals", "operatorConversations", "subscriptions", "billingCheckoutLocks", "aiDailyUsage", "privacyEvents", "dataSubjectRequests"]
+const deletionStages: UserOwnedTable[] = ["operatorMessages", "messageFeedback", "operatorTasks", "operatorTaskEvents", "weeklyReports", "growthMapItems", "productEvents", "operatorGoals", "operatorConversations", "entitlementGrants", "subscriptions", "billingCheckoutLocks", "emailDeliveries", "aiDailyUsage", "privacyEvents", "dataSubjectRequests"]
 const processDeletionRef = makeFunctionReference<"mutation", Record<string, never>, unknown>("privacy:processDeletion") as unknown as FunctionReference<"mutation", "internal", { userId: string; jobId: string }, unknown>
 
 export const processDeletion = internalMutation({
@@ -51,6 +51,12 @@ export const processDeletion = internalMutation({
             createdAt: timestamp,
           })
         }
+        await ctx.db.patch(job._id, { stage: "wait_notification", updatedAt: timestamp })
+        await ctx.scheduler.runAfter(10 * 60 * 1000, processDeletionRef, args)
+        return true
+      }
+
+      if (stage === "wait_notification") {
         await ctx.db.patch(job._id, { stage: deletionStages[0], updatedAt: timestamp })
         await ctx.scheduler.runAfter(0, processDeletionRef, args)
         return true

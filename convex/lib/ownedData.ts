@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type UserOwnedTable = "operatorMessages" | "operatorTasks" | "operatorGoals" | "operatorConversations" | "subscriptions" | "billingCheckoutLocks" | "aiDailyUsage" | "privacyEvents" | "dataSubjectRequests"
+export type UserOwnedTable = "operatorMessages" | "operatorTasks" | "operatorTaskEvents" | "messageFeedback" | "weeklyReports" | "growthMapItems" | "productEvents" | "operatorGoals" | "operatorConversations" | "subscriptions" | "entitlementGrants" | "billingCheckoutLocks" | "emailDeliveries" | "aiDailyUsage" | "privacyEvents" | "dataSubjectRequests" | "accountDeletionJobs"
 
 export function collectOwnedRows(ctx: any, table: UserOwnedTable, userId: string): Promise<any[]> {
   return ownedQuery(ctx, table, userId).collect()
@@ -21,12 +21,21 @@ function ownedQuery(ctx: any, table: UserOwnedTable, userId: string): any {
     case "operatorConversations":
       return ctx.db.query(table).withIndex("by_user_updated", (q: any) => q.eq("userId", userId))
     case "subscriptions":
+    case "entitlementGrants":
     case "billingCheckoutLocks":
+    case "accountDeletionJobs":
       return ctx.db.query(table).withIndex("by_user", (q: any) => q.eq("userId", userId))
     case "aiDailyUsage":
       return ctx.db.query(table).withIndex("by_user_date", (q: any) => q.eq("userId", userId))
     case "privacyEvents":
     case "dataSubjectRequests":
+    case "operatorTaskEvents":
+    case "messageFeedback":
+    case "weeklyReports":
+    case "productEvents":
+    case "emailDeliveries":
       return ctx.db.query(table).withIndex("by_user_created", (q: any) => q.eq("userId", userId))
+    case "growthMapItems":
+      return ctx.db.query(table).withIndex("by_user_updated", (q: any) => q.eq("userId", userId))
   }
 }

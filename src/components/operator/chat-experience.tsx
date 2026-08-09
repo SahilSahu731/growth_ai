@@ -2,12 +2,15 @@
 
 import Link from "next/link"
 import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent } from "react"
-import { ArrowRight, ArrowUp, Brain, Check, CheckCircle2, FileText, ListTodo, LockKeyhole, Sparkles, Target, type LucideIcon } from "lucide-react"
+import { ArrowRight, ArrowUp, Brain, Check, CheckCircle2, Copy, FileText, Flag, ListTodo, LockKeyhole, Sparkles, Target, ThumbsDown, ThumbsUp, WifiOff, type LucideIcon } from "lucide-react"
 
 import {
   acceptOperatorTasksAction,
+  editOperatorTaskProposalAction,
   loadOlderMessagesAction,
   sendOperatorMessageAction,
+  submitMessageFeedbackAction,
+  stopOperatorGenerationAction,
   type ChatActionState,
   type OperatorFormState,
 } from "@/app/(user)/chat/actions"
@@ -30,6 +33,7 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
   const [historyCursor, setHistoryCursor] = useState(workspace.messageCursor)
   const [historyDone, setHistoryDone] = useState(!workspace.hasMoreMessages)
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [online, setOnline] = useState(true)
   const submitMessage = useCallback(async (previous: ChatActionState, formData: FormData) => {
     const next = await sendOperatorMessageAction(previous, formData)
     if (next.sentAt) {
@@ -55,6 +59,14 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
     }, 0)
     return () => window.clearTimeout(restoreTimer)
   }, [draftStorageKey])
+
+  useEffect(() => {
+    const update = () => setOnline(window.navigator.onLine)
+    update()
+    window.addEventListener("online", update)
+    window.addEventListener("offline", update)
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update) }
+  }, [])
 
   function updateDraft(value: string) {
     setDraft(value)
@@ -89,7 +101,7 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
               <p className="text-[10px] capitalize tracking-wide text-white/35">{workspace.conversation.state.replaceAll("_", " ")}</p>
             </div>
           </div>
-          <span className="hidden rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1 text-[10px] font-medium text-white/40 sm:inline-flex">Your AI growth operator</span>
+          {online ? <span className="hidden rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1 text-[10px] font-medium text-white/40 sm:inline-flex">Your AI growth operator</span> : <span role="status" className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-300/5 px-3 py-1 text-[10px] text-amber-200"><WifiOff className="size-3" />Offline — draft is saved</span>}
         </div>
 
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
@@ -101,7 +113,7 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
               {messages.map((message) => (
                 <Message key={message.id} message={message} conversationId={workspace.conversation.id} sendAction={sendAction} pending={pending} locale={workspace.locale} timezone={workspace.timezone} />
               ))}
-              {pending ? <Thinking /> : null}
+              {pending ? <Thinking conversationId={workspace.conversation.id} /> : null}
               <div ref={endRef} />
             </div>
           )}
@@ -143,7 +155,7 @@ export function ChatExperience({ workspace, weeklyActivity, userName }: { worksp
                 <p className="hidden text-[10px] text-white/25 sm:block">GrowthAI can make mistakes. Keep major life decisions yours.</p>
                 <button
                   type="submit"
-                  disabled={pending || draft.trim().length < 2}
+                  disabled={!online || pending || draft.trim().length < 2}
                   aria-label="Send message"
                   className="ml-auto flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground transition hover:bg-primary/85 disabled:bg-white/10 disabled:text-white/25"
                 >
@@ -252,6 +264,20 @@ function Message({
             <button disabled={pending} className="rounded-full border border-red-300/20 px-3 py-1.5 text-[10px] font-semibold text-red-200 transition hover:border-red-300/40 disabled:opacity-50">Retry answer</button>
           </form>
         ) : message.generationStatus === "pending" ? <span className="text-[10px] text-white/35">Answer pending…</span> : null}
+        {message.generationStatus !== "pending" ? (
+          <details className="max-w-[85%] text-right sm:max-w-[72%]">
+            <summary className="cursor-pointer list-none text-[10px] text-white/30 hover:text-white/60">Edit and resend</summary>
+            <form action={sendAction} onSubmit={assignNewRequestId} className="mt-2 rounded-xl border border-white/[.08] bg-[#202020] p-2 text-left">
+              <input type="hidden" name="conversationId" value={conversationId} />
+              <input type="hidden" name="requestId" />
+              <textarea name="message" defaultValue={message.content} minLength={2} maxLength={4000} rows={3} required className="w-full resize-y bg-transparent px-2 py-1.5 text-xs leading-5 text-white/80 outline-none" />
+              <div className="flex items-center justify-between gap-3 border-t border-white/[.07] px-2 pt-2">
+                <span className="text-[9px] text-white/25">Sent as a new turn; the original stays in history.</span>
+                <button disabled={pending} className="rounded-lg bg-primary px-3 py-1.5 text-[10px] font-semibold text-primary-foreground disabled:opacity-50">Resend</button>
+              </div>
+            </form>
+          </details>
+        ) : null}
       </div>
     )
   }
@@ -261,6 +287,7 @@ function Message({
       <BrandLogo className="size-8 sm:size-9" />
       <div className="min-w-0 pt-1">
         <p className="whitespace-pre-wrap text-sm leading-7 text-white/80">{message.content}</p>
+        <MessageActions message={message} />
 
         {message.taskDrafts.length ? (
           <TaskProposal message={message} conversationId={conversationId} locale={locale} timezone={timezone} />
@@ -289,6 +316,24 @@ function Message({
   )
 }
 
+function MessageActions({ message }: { message: OperatorMessage }) {
+  const [saved, setSaved] = useState<string | null>(null)
+  async function feedback(rating: "useful" | "not_useful" | "reported", reason?: string) {
+    const data = new FormData()
+    data.set("messageId", message.id)
+    data.set("rating", rating)
+    if (reason) data.set("reason", reason)
+    const result = await submitMessageFeedbackAction(data)
+    if (result.success) setSaved(rating)
+  }
+  function report() {
+    const reason = window.prompt("What was wrong with this response? Do not include passwords or payment information.", "")
+    if (reason === null) return
+    void feedback("reported", reason.slice(0, 300))
+  }
+  return <div className="mt-2 flex items-center gap-1 text-white/25"><span className="mr-2 text-[9px]">{new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(message.createdAt))}</span><button type="button" onClick={() => void navigator.clipboard.writeText(message.content)} aria-label="Copy response" className="rounded-md p-1.5 hover:bg-white/[.06] hover:text-white"><Copy className="size-3.5" /></button><button type="button" onClick={() => void feedback("useful")} aria-label="Useful response" className={`rounded-md p-1.5 hover:bg-white/[.06] hover:text-white ${saved === "useful" ? "text-primary" : ""}`}><ThumbsUp className="size-3.5" /></button><button type="button" onClick={() => void feedback("not_useful")} aria-label="Not useful response" className={`rounded-md p-1.5 hover:bg-white/[.06] hover:text-white ${saved === "not_useful" ? "text-primary" : ""}`}><ThumbsDown className="size-3.5" /></button><button type="button" onClick={report} aria-label="Report response" className={`rounded-md p-1.5 hover:bg-red-400/10 hover:text-red-300 ${saved === "reported" ? "text-red-300" : ""}`}><Flag className="size-3.5" /></button>{saved ? <span role="status" className="ml-1 text-[9px] text-white/35">Saved</span> : null}</div>
+}
+
 function assignNewRequestId(event: FormEvent<HTMLFormElement>) {
   const input = event.currentTarget.elements.namedItem("requestId")
   if (input instanceof HTMLInputElement) input.value = crypto.randomUUID()
@@ -315,6 +360,7 @@ function TaskProposal({ message, conversationId, locale, timezone }: { message: 
                 <span>{task.estimatedMinutes} min</span>
                 <span>Done when: {task.completionCondition}</span>
               </div>
+              {!message.tasksAcceptedAt ? <details className="mt-3"><summary className="cursor-pointer text-[10px] font-semibold text-primary">Edit before adding</summary><form action={editOperatorTaskProposalAction} className="mt-3 grid gap-2 rounded-xl border border-white/[.08] bg-black/10 p-3 sm:grid-cols-2"><input type="hidden" name="conversationId" value={conversationId} /><input type="hidden" name="messageId" value={message.id} /><input type="hidden" name="index" value={index} /><input name="title" defaultValue={task.title} minLength={3} maxLength={120} required className="h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white" /><input name="goalTitle" defaultValue={task.goalTitle || "Personal growth"} maxLength={80} required className="h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white" /><input name="scheduledFor" type="date" defaultValue={task.scheduledFor} required className="h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white" /><input name="estimatedMinutes" type="number" min={5} max={240} step={5} defaultValue={task.estimatedMinutes} required className="h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white" /><input name="completionCondition" defaultValue={task.completionCondition} minLength={3} maxLength={220} required className="h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white sm:col-span-2" /><textarea name="note" defaultValue={task.note} maxLength={300} placeholder="Why this supports the goal" className="min-h-16 rounded-lg border border-white/10 bg-white/5 p-2 text-xs text-white sm:col-span-2" /><button className="h-9 rounded-lg border border-primary/30 px-3 text-xs font-semibold text-primary sm:col-span-2">Save proposal</button></form></details> : null}
             </div>
           </div>
         ))}
@@ -365,11 +411,11 @@ function TaskPanel({ tasks, goals, locale }: { tasks: OperatorTask[]; goals: Ope
   )
 }
 
-function Thinking() {
+function Thinking({ conversationId }: { conversationId: string }) {
   return (
     <div className="mb-10 grid grid-cols-[2rem_minmax(0,1fr)] gap-3 sm:grid-cols-[2.25rem_minmax(0,1fr)] sm:gap-4">
       <BrandLogo className="size-8 sm:size-9" />
-      <div className="flex items-center gap-1.5 pt-3"><span className="size-1.5 animate-pulse rounded-full bg-white/30" /><span className="size-1.5 animate-pulse rounded-full bg-white/30 [animation-delay:120ms]" /><span className="size-1.5 animate-pulse rounded-full bg-white/30 [animation-delay:240ms]" /></div>
+      <div className="flex items-center gap-3 pt-3"><span className="flex items-center gap-1.5"><span className="size-1.5 animate-pulse rounded-full bg-white/30" /><span className="size-1.5 animate-pulse rounded-full bg-white/30 [animation-delay:120ms]" /><span className="size-1.5 animate-pulse rounded-full bg-white/30 [animation-delay:240ms]" /></span><form action={stopOperatorGenerationAction}><input type="hidden" name="conversationId" value={conversationId} /><button className="rounded-full border border-white/10 px-3 py-1.5 text-[10px] font-semibold text-white/45 hover:border-red-300/30 hover:text-red-200">Stop generating</button></form></div>
     </div>
   )
 }

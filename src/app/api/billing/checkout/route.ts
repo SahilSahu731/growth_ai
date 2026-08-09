@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { beginBillingCheckout, completeBillingCheckout, releaseBillingCheckout } from "@/lib/data/account"
 import { isAllowedRazorpayCheckoutUrl, isRazorpaySubscriptionId, isTrustedBillingRequest, paidPlanConfig, type PaidPlanId } from "@/lib/billing/razorpay"
+import { getPurchasablePlan } from "@/lib/plans"
 
 export const runtime = "nodejs"
 
@@ -20,11 +21,13 @@ export async function POST(request: Request) {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
     return NextResponse.json({ error: "Expected JSON." }, { status: 415 })
   }
+  if (Number(request.headers.get("content-length") ?? "0") > 4096) return NextResponse.json({ error: "Payload too large." }, { status: 413 })
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 })
   const body = await request.json().catch(() => null) as { plan?: unknown } | null
   if (body?.plan !== "pro" && body?.plan !== "founder") return NextResponse.json({ error: "Choose a valid paid plan." }, { status: 400 })
   const plan = body.plan as PaidPlanId
+  if (!getPurchasablePlan(plan)) return NextResponse.json({ error: "This plan is not open for new enrollment." }, { status: 409 })
   const planConfig = paidPlanConfig(plan, process.env)
   const keyId = process.env.RAZORPAY_KEY_ID
   const keySecret = process.env.RAZORPAY_KEY_SECRET

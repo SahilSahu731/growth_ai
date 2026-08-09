@@ -10,6 +10,7 @@ import {
 import { v } from "convex/values"
 
 import { resolveEntitlements, syncCachedPlan } from "./lib/entitlements"
+import { enqueueEmail } from "./lib/email"
 import { requireMember, requireScope } from "./lib/serverAuth"
 
 const paidPlan = v.union(v.literal("pro"), v.literal("founder"))
@@ -112,6 +113,15 @@ async function processStoredEvent(ctx: any, event: any) {
   }
   const transition = transitionFor(event, subscription, now)
   if (!transition) return failEvent(ctx, event, "transition", `Unsupported billing transition: ${event.eventType}/${event.reportedStatus ?? "unknown"}`, now)
+  const sameBusinessState = transition.status === subscription.status
+    && (!event.periodStart || event.periodStart === subscription.periodStart)
+    && (!event.periodEnd || event.periodEnd === subscription.periodEnd)
+    && (!("entitlementState" in transition) || transition.entitlementState === subscription.entitlementState)
+    && (!("cancelAtPeriodEnd" in transition) || transition.cancelAtPeriodEnd === subscription.cancelAtPeriodEnd)
+  if (sameBusinessState) {
+    await ctx.db.patch(event._id, { status: "ignored", attemptCount: (event.attemptCount ?? 0) + 1, lastAttemptAt: nowIso, processedAt: nowIso, finalDisposition: "duplicate", failureReason: "Business transition was already applied" })
+    return { ok: true as const, duplicateTransition: true }
+  }
   const before = await resolveEntitlements(ctx, subscription.userId, now)
   await ctx.db.patch(subscription._id, {
     ...transition,
@@ -126,6 +136,19 @@ async function processStoredEvent(ctx: any, event: any) {
   if (after && before.plan !== after.plan) {
     await raiseAlert(ctx, { kind: "entitlement_change", severity: "info", dedupeKey: `entitlement:${event.providerEventId}`, userId: subscription.userId, providerSubscriptionId: subscription.providerSubscriptionId, billingEventId: String(event._id), message: `Entitlement changed from ${before.plan} to ${after.plan} after ${event.eventType}.` }, nowIso)
   }
+  const user = await userForId(ctx, subscription.userId)
+  const emailKind = event.eventType === "subscription.charged" ? "renewal" : ["subscription.authenticated", "subscription.activated"].includes(event.eventType) ? "subscription_confirmation" : event.eventType === "payment.failed" || event.reportedStatus === "halted" ? "payment_failure" : event.eventType === "subscription.cancelled" ? "cancellation" : event.eventType === "subscription.updated" ? "plan_change" : null
+  if (user?.email && emailKind) {
+    const details: Record<string, string> = {
+      subscription_confirmation: `Your ${subscription.planTier} subscription is active. Access was granted only after a signed provider event.`,
+      renewal: `Your ${subscription.planTier} subscription renewed. The recorded amount is ${(subscription.amount / 100).toFixed(2)} ${subscription.currency}.`,
+      payment_failure: `Razorpay reported a payment problem. Access remains available for a 72-hour grace period while you update payment details.`,
+      cancellation: transition.entitlementState === "active" ? `Renewal is cancelled. Access continues through ${transition.accessUntil}.` : "Your subscription has been cancelled and paid access has ended.",
+      plan_change: `Razorpay reported a subscription update. Your current entitlement is ${after?.plan ?? "free"}.`,
+    }
+    await enqueueEmail(ctx, { idempotencyKey: `billing:${event.providerEventId}:${emailKind}`, userId: subscription.userId, toEmail: user.email, kind: emailKind as any, mandatory: true, variables: { detail: details[emailKind], accountUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://growthai.app"}/settings#billing` } })
+  }
+  if (after && before.plan === "free" && after.plan !== "free") await ctx.db.insert("productEvents", { userId: subscription.userId, name: "subscription_activated", sourceId: subscription.providerSubscriptionId, funnelVersion: "core-loop-v1", plan: after.plan, createdAt: nowIso })
   return { ok: true as const, applied: true }
 }
 
@@ -153,6 +176,19 @@ export const getUserBilling = query({
   },
 })
 
+export const recordUpgradeViewed = mutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    await requireMember(ctx, userId, "billing:read")
+    const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const recent = await ctx.db.query("productEvents").withIndex("by_user_created", (q: any) => q.eq("userId", userId).gte("createdAt", cutoff)).filter((q: any) => q.eq(q.field("name"), "upgrade_viewed")).first()
+    if (recent) return true
+    const entitlement = await resolveEntitlements(ctx, userId)
+    await ctx.db.insert("productEvents", { userId, name: "upgrade_viewed", funnelVersion: "core-loop-v1", plan: entitlement.plan, createdAt: new Date().toISOString() })
+    return true
+  },
+})
+
 export const beginCheckout = mutation({
   args: { userId: v.string(), planTier: paidPlan },
   handler: async (ctx, args) => {
@@ -169,6 +205,7 @@ export const beginCheckout = mutation({
       }
     }
     const live = subscriptions.some((item: any) => item.status !== "created" && ["pending", "active", "authenticated", "paused", "halted"].includes(item.status))
+      || subscriptions.some((item: any) => item.entitlementState === "active" && (!item.accessUntil || item.accessUntil > nowIso) || item.entitlementState === "grace" && item.graceUntil && item.graceUntil > nowIso)
       || subscriptions.some((item: any) => item.status === "created" && item.checkoutExpiresAt && item.checkoutExpiresAt > nowIso)
     if (live) return { ok: false as const, reason: "existing_subscription" as const }
     const existingLock = await ctx.db.query("billingCheckoutLocks").withIndex("by_user", (q: any) => q.eq("userId", args.userId)).unique()
@@ -176,6 +213,8 @@ export const beginCheckout = mutation({
     if (existingLock) await ctx.db.delete(existingLock._id)
     const token = crypto.randomUUID()
     await ctx.db.insert("billingCheckoutLocks", { userId: args.userId, token, planTier: args.planTier, createdAt: nowIso, expiresAt: new Date(now.getTime() + 10 * 60 * 1000).toISOString() })
+    const entitlements = await resolveEntitlements(ctx, args.userId, now)
+    await ctx.db.insert("productEvents", { userId: args.userId, name: "checkout_started", funnelVersion: "core-loop-v1", plan: entitlements.plan, sourceId: token, createdAt: nowIso })
     return { ok: true as const, token }
   },
 })
@@ -318,9 +357,20 @@ export const applyReconciliation = internalMutation({
       await raiseAlert(ctx, { kind: "reconciliation_drift", severity: "warning", dedupeKey: `reconcile:${item.providerSubscriptionId}`, userId: item.userId, providerSubscriptionId: item.providerSubscriptionId, message: `Subscription reconciliation failed (${args.errorCategory ?? "provider_error"}).` }, nowIso)
       return false
     }
-    const drift = item.status !== args.providerStatus || Boolean(args.providerPlanId && item.providerPlanId !== args.providerPlanId)
+    const planMismatch = Boolean(args.providerPlanId && item.providerPlanId !== args.providerPlanId)
+    const statusDrift = item.status !== args.providerStatus
+    const drift = statusDrift || planMismatch
     await ctx.db.patch(item._id, { lastReconciledAt: nowIso, reconciliationStatus: drift ? "drift" : "matched", reconciliationErrorCategory: undefined })
     if (drift) await raiseAlert(ctx, { kind: "reconciliation_drift", severity: "critical", dedupeKey: `reconcile:${item.providerSubscriptionId}`, userId: item.userId, providerSubscriptionId: item.providerSubscriptionId, message: `Provider reports ${args.providerStatus}/${args.providerPlanId ?? "unknown plan"}; application has ${item.status}/${item.providerPlanId ?? "unknown plan"}.` }, nowIso)
+    // Status drift is repairable when the provider plan still matches the
+    // server-created checkout. A plan mismatch remains quarantined for review.
+    if (statusDrift && !planMismatch) {
+      const providerEventId = `reconcile_${item.providerSubscriptionId}_${Date.now()}`
+      const eventId = await ctx.db.insert("billingEvents", { provider: "razorpay", providerEventId, eventType: "subscription.updated", payloadDigest: "provider-reconciliation", eventCreatedAt: Date.now(), providerSubscriptionId: item.providerSubscriptionId, providerPlanId: args.providerPlanId, reportedStatus: args.providerStatus, periodStart: args.periodStart, periodEnd: args.periodEnd, status: "received", attemptCount: 0, createdAt: nowIso })
+      await processStoredEvent(ctx, await ctx.db.get(eventId))
+      await ctx.db.patch(item._id, { lastReconciledAt: nowIso, reconciliationStatus: "matched", reconciliationErrorCategory: undefined })
+      return true
+    }
     return !drift
   },
 })

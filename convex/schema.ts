@@ -26,6 +26,10 @@ export default defineSchema({
     locale: v.optional(v.string()),
     coachTone: v.optional(v.union(v.literal("supportive"), v.literal("balanced"), v.literal("blunt"))),
     emailNotifications: v.optional(v.boolean()),
+    notificationQuietStart: v.optional(v.string()),
+    notificationQuietEnd: v.optional(v.string()),
+    notificationFrequency: v.optional(v.union(v.literal("off"), v.literal("weekly"))),
+    notificationSnoozedUntil: v.optional(v.string()),
     messageRetentionDays: v.optional(v.number()),
     aiMemoryClearedAt: v.optional(v.string()),
     termsAcceptedVersion: v.optional(v.string()),
@@ -53,6 +57,7 @@ export default defineSchema({
     title: v.string(),
     state: conversationState,
     pinnedAt: v.optional(v.string()),
+    archivedAt: v.optional(v.string()),
     createdAt: v.string(),
     updatedAt: v.string(),
   })
@@ -140,6 +145,78 @@ export default defineSchema({
     .index("by_user_date", ["userId", "scheduledFor"])
     .index("by_user_status", ["userId", "status"])
     .index("by_user_updated", ["userId", "updatedAt"]),
+
+  operatorTaskEvents: defineTable({
+    userId: v.string(),
+    taskId: v.string(),
+    event: v.union(v.literal("accepted"), v.literal("completed"), v.literal("dismissed"), v.literal("reopened"), v.literal("rescheduled"), v.literal("deferred"), v.literal("edited")),
+    fromStatus: v.optional(v.string()),
+    toStatus: v.optional(v.string()),
+    fromDate: v.optional(v.string()),
+    toDate: v.optional(v.string()),
+    createdAt: v.string(),
+  })
+    .index("by_user_created", ["userId", "createdAt"])
+    .index("by_task_created", ["taskId", "createdAt"]),
+
+  messageFeedback: defineTable({
+    userId: v.string(),
+    messageId: v.string(),
+    rating: v.union(v.literal("useful"), v.literal("not_useful"), v.literal("reported")),
+    reason: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_message_user", ["messageId", "userId"])
+    .index("by_user_created", ["userId", "createdAt"]),
+
+  weeklyReports: defineTable({
+    userId: v.string(),
+    version: v.number(),
+    windowStart: v.string(),
+    windowEnd: v.string(),
+    previousWindowStart: v.string(),
+    counts: v.object({ completed: v.number(), deferred: v.number(), dismissed: v.number(), overdue: v.number(), conversationTurns: v.number() }),
+    previousCounts: v.object({ completed: v.number(), deferred: v.number(), dismissed: v.number(), overdue: v.number(), conversationTurns: v.number() }),
+    observations: v.array(v.object({ id: v.string(), kind: v.union(v.literal("fact"), v.literal("hypothesis")), statement: v.string(), confidence: v.number(), taskIds: v.array(v.string()), conversationIds: v.array(v.string()), reviewStatus: v.optional(v.union(v.literal("accepted"), v.literal("rejected"), v.literal("corrected"))), correction: v.optional(v.string()) })),
+    nextFocus: v.array(v.string()),
+    createdAt: v.string(),
+  })
+    .index("by_user_window", ["userId", "windowStart"])
+    .index("by_user_created", ["userId", "createdAt"]),
+
+  growthMapItems: defineTable({
+    legacyId: v.string(),
+    userId: v.string(),
+    type: v.union(v.literal("evidence"), v.literal("obstacle"), v.literal("experiment"), v.literal("outcome")),
+    title: v.string(),
+    description: v.string(),
+    confidence: v.number(),
+    sourceTaskIds: v.array(v.string()),
+    sourceConversationIds: v.array(v.string()),
+    userConfirmed: v.boolean(),
+    status: v.union(v.literal("active"), v.literal("dismissed"), v.literal("merged")),
+    mergedInto: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_legacy_id", ["legacyId"])
+    .index("by_user_updated", ["userId", "updatedAt"]),
+
+  productEvents: defineTable({
+    userId: v.string(),
+    name: v.union(v.literal("conversation_started"), v.literal("evidence_gathered"), v.literal("plan_proposed"), v.literal("task_accepted"), v.literal("task_completed"), v.literal("task_deferred"), v.literal("report_viewed"), v.literal("upgrade_viewed"), v.literal("checkout_started"), v.literal("subscription_activated"), v.literal("onboarding_completed"), v.literal("feedback_submitted")),
+    sourceId: v.optional(v.string()),
+    funnelVersion: v.string(),
+    acquisitionSource: v.optional(v.string()),
+    experiment: v.optional(v.string()),
+    plan: v.string(),
+    durationMs: v.optional(v.number()),
+    estimatedCostUsd: v.optional(v.number()),
+    createdAt: v.string(),
+  })
+    .index("by_user_created", ["userId", "createdAt"])
+    .index("by_name_created", ["name", "createdAt"]),
 
   aiUsageWindows: defineTable({
     key: v.string(),
@@ -270,6 +347,38 @@ export default defineSchema({
   })
     .index("by_status_created", ["status", "createdAt"])
     .index("by_dedupe", ["dedupeKey"]),
+
+  emailDeliveries: defineTable({
+    idempotencyKey: v.string(),
+    userId: v.optional(v.string()),
+    toEmail: v.string(),
+    kind: v.union(v.literal("subscription_confirmation"), v.literal("renewal"), v.literal("payment_failure"), v.literal("cancellation"), v.literal("plan_change"), v.literal("security_alert"), v.literal("export_ready"), v.literal("deletion_status"), v.literal("weekly_summary")),
+    mandatory: v.boolean(),
+    variablesJson: v.string(),
+    status: v.union(v.literal("queued"), v.literal("sending"), v.literal("sent"), v.literal("delivered"), v.literal("bounced"), v.literal("complained"), v.literal("failed"), v.literal("dead_letter"), v.literal("suppressed")),
+    attemptCount: v.number(),
+    nextRetryAt: v.optional(v.string()),
+    providerId: v.optional(v.string()),
+    errorCategory: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    sentAt: v.optional(v.string()),
+    deliveredAt: v.optional(v.string()),
+  })
+    .index("by_idempotency", ["idempotencyKey"])
+    .index("by_status_retry", ["status", "nextRetryAt"])
+    .index("by_provider", ["providerId"])
+    .index("by_user_created", ["userId", "createdAt"]),
+
+  emailWebhookEvents: defineTable({
+    providerEventId: v.string(),
+    payloadDigest: v.string(),
+    eventType: v.string(),
+    providerEmailId: v.optional(v.string()),
+    status: v.union(v.literal("processed"), v.literal("ignored")),
+    createdAt: v.string(),
+  }).index("by_provider_event", ["providerEventId"]),
 
   // Admin identity is deliberately not stored on user records. These tables
   // support abuse prevention and an immutable operational trail for the

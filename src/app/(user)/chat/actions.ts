@@ -10,15 +10,19 @@ import { safeErrorForLog } from "@/lib/safe-log"
 import {
   acceptOperatorTasks,
   beginOperatorTurn,
+  cancelOperatorTurn,
   completeOperatorTurn,
   createOperatorGoal,
   failOperatorTurn,
   getOperatorMessagePage,
   getOperatorWorkspace,
+  reviewOperatorWeeklyObservation,
+  submitOperatorMessageFeedback,
   recordOperatorProviderOutcome,
   setOperatorTaskStatus,
   updateOperatorGoal,
   updateOperatorTask,
+  updateOperatorTaskProposal,
 } from "@/lib/data/operator"
 import { generateOperatorTurn } from "@/lib/operator/orchestrator"
 import type { OperatorGoal, OperatorTask } from "@/lib/operator/types"
@@ -160,6 +164,14 @@ export async function acceptOperatorTasksAction(_state: OperatorFormState, formD
   }
 }
 
+export async function editOperatorTaskProposalAction(formData: FormData): Promise<void> {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return
+  const estimatedMinutes = Number.parseInt(field(formData, "estimatedMinutes"), 10)
+  await updateOperatorTaskProposal({ userId: session.user.id, conversationId: field(formData, "conversationId"), messageId: field(formData, "messageId"), index: Number.parseInt(field(formData, "index"), 10), title: field(formData, "title"), note: field(formData, "note"), estimatedMinutes: Number.isFinite(estimatedMinutes) ? estimatedMinutes : 25, completionCondition: field(formData, "completionCondition"), scheduledFor: field(formData, "scheduledFor"), goalTitle: field(formData, "goalTitle") })
+  revalidateOperatorViews()
+}
+
 export async function setOperatorTaskStatusAction(formData: FormData): Promise<{ success: boolean; error?: string }> {
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
@@ -169,6 +181,39 @@ export async function setOperatorTaskStatusAction(formData: FormData): Promise<{
   if (!taskId || !["todo", "done", "dismissed"].includes(status)) return { success: false, error: "Invalid task update." }
   const success = await setOperatorTaskStatus({ userId, taskId, status })
   return { success, ...(success ? {} : { error: "Task was not found." }) }
+}
+
+export async function submitMessageFeedbackAction(formData: FormData): Promise<{ success: boolean; error?: string }> {
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id
+  if (!userId) return { success: false, error: "Your session expired." }
+  const messageId = field(formData, "messageId")
+  const rating = field(formData, "rating")
+  const reason = field(formData, "reason")
+  if (!messageId || !["useful", "not_useful", "reported"].includes(rating)) return { success: false, error: "Invalid feedback." }
+  try { await submitOperatorMessageFeedback({ userId, messageId, rating: rating as "useful" | "not_useful" | "reported", ...(reason ? { reason } : {}) }); return { success: true } }
+  catch { return { success: false, error: "Feedback could not be saved." } }
+}
+
+export async function stopOperatorGenerationAction(formData: FormData): Promise<void> {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return
+  const conversationId = field(formData, "conversationId")
+  if (conversationId) await cancelOperatorTurn({ userId: session.user.id, conversationId })
+  revalidateOperatorViews()
+}
+
+export async function reviewWeeklyObservationAction(formData: FormData): Promise<void> {
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id
+  if (!userId) return
+  const reportId = field(formData, "reportId")
+  const observationId = field(formData, "observationId")
+  const status = field(formData, "status")
+  const correction = field(formData, "correction")
+  if (!reportId || !observationId || !["accepted", "rejected", "corrected"].includes(status)) return
+  await reviewOperatorWeeklyObservation({ userId, reportId, observationId, status: status as "accepted" | "rejected" | "corrected", ...(correction ? { correction } : {}) })
+  revalidatePath("/weekly-report")
 }
 
 export async function updateOperatorTaskAction(_state: OperatorFormState, formData: FormData): Promise<OperatorFormState> {

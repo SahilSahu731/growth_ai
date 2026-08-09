@@ -121,7 +121,7 @@ export type AdminBilling = {
   pages: number
 }
 
-export function grantAdminComplimentaryAccess(input: { actor: string; userId: string; planTier: "pro" | "founder"; source: "admin_comp" | "design_partner" | "support_remediation"; reason: string; startsAt: string; expiresAt: string }): Promise<Record<string, unknown>> {
+export function grantAdminComplimentaryAccess(input: { actor: string; userId: string; planTier: "pro"; source: "admin_comp" | "design_partner" | "support_remediation"; reason: string; startsAt: string; expiresAt: string }): Promise<Record<string, unknown>> {
   return convexMutation("admin:grantComplimentaryAccess", input, admin(input.actor, "admin:billing"))
 }
 
@@ -132,6 +132,9 @@ export function replayAdminBillingEvent(input: { actor: string; providerEventId:
 export function getAdminBilling(page: number, pageSize = 25): Promise<AdminBilling> {
   return convexQuery("admin:getBilling", { page, pageSize }, admin("session", "admin:billing"))
 }
+
+export type AdminProductAnalytics = { days: number; counts: Record<string, number>; activeUsers: number; activatedUsers: number; day1Retained: number; day7Retained: number; week4Retained: number; paidRetained: number; weeklyReportUsers: number; p95LatencyMs: number; fallbackResponses: number; safetyInterventions: number; totalCostUsd: number; costPerActiveUserUsd: number; generatedAt: string }
+export function getAdminProductAnalytics(days = 28): Promise<AdminProductAnalytics> { return convexQuery("admin:getProductAnalytics", { days }, admin("session", "admin:read")) }
 
 export type AdminActivity = {
   items: Array<{ id: string; role: string; content: string; createdAt: string; conversationTitle: string; user: { id: string; name: string; email: string } | null }>

@@ -3,12 +3,13 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useActionState, useCallback, useState, useTransition } from "react"
-import { MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
+import { Archive, ArchiveRestore, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
 
 import {
   deleteConversationAction,
   renameConversationAction,
   toggleConversationPinAction,
+  toggleConversationArchiveAction,
   type ConversationActionState,
 } from "@/app/(user)/conversation-actions"
 import {
@@ -40,7 +41,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 type ConversationHistoryItemProps = {
-  conversation: { id: string; title: string; pinned: boolean }
+  conversation: { id: string; title: string; pinned: boolean; archived: boolean }
   active: boolean
 }
 
@@ -66,6 +67,7 @@ export function ConversationHistoryItem({ conversation, active }: ConversationHi
   }, [active, router])
   const [renameState, renameAction, renamePending] = useActionState(submitRename, {} as ConversationActionState)
   const [pinState, pinAction, pinPending] = useActionState(toggleConversationPinAction, {} as ConversationActionState)
+  const [archiveState, archiveAction, archivePending] = useActionState(toggleConversationArchiveAction, {} as ConversationActionState)
   const [deleteState, deleteAction, deletePending] = useActionState(submitDelete, {} as ConversationActionState)
 
   function togglePin() {
@@ -80,6 +82,7 @@ export function ConversationHistoryItem({ conversation, active }: ConversationHi
     formData.set("conversationId", conversation.id)
     startDeleteTransition(() => deleteAction(formData))
   }
+  function toggleArchive() { const formData = new FormData(); formData.set("conversationId", conversation.id); formData.set("archived", String(!conversation.archived)); startPinTransition(() => archiveAction(formData)) }
 
   const deleting = deletePending || deleteTransitionPending
 
@@ -111,12 +114,13 @@ export function ConversationHistoryItem({ conversation, active }: ConversationHi
               {conversation.pinned ? <PinOff /> : <Pin />}{conversation.pinned ? "Unpin" : "Pin"}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setRenameOpen(true)} className="cursor-pointer"><Pencil />Rename</DropdownMenuItem>
+            <DropdownMenuItem disabled={archivePending} onSelect={toggleArchive} className="cursor-pointer">{conversation.archived ? <ArchiveRestore /> : <Archive />}{conversation.archived ? "Restore" : "Archive"}</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)} className="cursor-pointer"><Trash2 />Delete</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {pinState.error ? <p role="alert" className="px-2 pb-1 text-[11px] leading-4 text-red-500">{pinState.error}</p> : null}
+      {pinState.error || archiveState.error ? <p role="alert" className="px-2 pb-1 text-[11px] leading-4 text-red-500">{pinState.error ?? archiveState.error}</p> : null}
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent className="max-w-md">

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, type ReactNode } from "react"
-import { Activity, CreditCard, LayoutDashboard, LogOut, Megaphone, Menu, ShieldCheck, Users, X } from "lucide-react"
+import { Activity, BarChart3, CreditCard, LayoutDashboard, LogOut, Megaphone, Menu, ShieldCheck, Users, X } from "lucide-react"
 
 import { adminLogoutAction } from "@/app/admin/actions"
 import { BrandLogo } from "@/components/brand-logo"
@@ -14,6 +14,7 @@ const navigation = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
   { href: "/admin/activity", label: "Activity", icon: Activity },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/billing", label: "Billing", icon: CreditCard },
   { href: "/admin/security", label: "Security", icon: ShieldCheck },
 ] as const

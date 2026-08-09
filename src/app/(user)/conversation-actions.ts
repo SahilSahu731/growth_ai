@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/auth"
-import { deleteOperatorConversation, renameOperatorConversation, setOperatorConversationPinned } from "@/lib/data/operator"
+import { deleteOperatorConversation, renameOperatorConversation, setOperatorConversationArchived, setOperatorConversationPinned } from "@/lib/data/operator"
 
 export type ConversationActionState = { error?: string; success?: boolean; updatedAt?: number }
 
@@ -66,4 +66,14 @@ export async function deleteConversationAction(
   }
   revalidatePath("/", "layout")
   return { success: true, updatedAt: Date.now() }
+}
+
+export async function toggleConversationArchiveAction(_state: ConversationActionState, formData: FormData): Promise<ConversationActionState> {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { error: "Your session expired." }
+  try {
+    await setOperatorConversationArchived({ userId: session.user.id, conversationId: value(formData, "conversationId"), archived: value(formData, "archived") === "true" })
+    revalidatePath("/", "layout")
+    return { success: true, updatedAt: Date.now() }
+  } catch (error) { return { error: conversationActionError(error, "Could not update this chat.") } }
 }

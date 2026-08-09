@@ -1,5 +1,5 @@
 export type PlanId = "free" | "pro" | "founder" | "team"
-export type MarketedPlanId = Exclude<PlanId, "team">
+export type MarketedPlanId = "free" | "pro"
 export type PaidPlanId = "pro" | "founder"
 export type PlanAvailability = "public" | "limited" | "unavailable"
 export type EntitlementKey = "operator" | "weekly_report" | "growth_map" | "privacy_export" | "expanded_goals"
@@ -47,14 +47,14 @@ export const PLAN_CATALOG: Readonly<Record<PlanId, PlanDefinition>> = {
   founder: {
     id: "founder",
     name: "Founder",
-    description: "A limited public-beta subscription at a lower locked price while continuously subscribed.",
-    availability: "limited",
+    description: "A legacy public-beta price retained for existing continuously subscribed accounts; new enrollment is closed.",
+    availability: "unavailable",
     price: { amountMinor: 74_900, currency: "INR", interval: "month", intervalCount: 1, taxBehavior: "exclusive" },
     limits: { activeGoals: 25 },
     entitlements: { operator: true, weekly_report: true, growth_map: true, privacy_export: true, expanded_goals: true },
     providerPlanEnvironmentKey: "RAZORPAY_PLAN_ID_FOUNDER",
-    features: ["Everything currently available in Pro", "₹749 monthly price while continuously subscribed", "Limited public-beta availability", "No badge, private channel, or unreleased feature promise"],
-    purchaseDisclosure: "Renews monthly until cancelled. Cancelling ends the locked Founder price; taxes may apply.",
+    features: ["Legacy accounts retain the current Pro workspace", "₹749 monthly price while continuously subscribed", "Closed to new enrollment", "No badge, private channel, or unreleased feature promise"],
+    purchaseDisclosure: "Not available for new purchase. Existing subscriptions renew monthly until cancelled; taxes may apply.",
   },
   team: {
     id: "team",
@@ -72,7 +72,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanId, PlanDefinition>> = {
 
 export type Plan = PlanDefinition & { monthlyPrice: number | null }
 
-export const PLANS: readonly Plan[] = (["free", "pro", "founder"] as const).map((id) => {
+export const PLANS: readonly Plan[] = (["free", "pro"] as const).map((id) => {
   const plan = PLAN_CATALOG[id]
   return { ...plan, monthlyPrice: plan.price.amountMinor === null ? null : plan.price.amountMinor / 100 }
 })

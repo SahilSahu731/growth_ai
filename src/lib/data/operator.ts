@@ -11,6 +11,7 @@ import type {
   OperatorTask,
   OperatorTurn,
   OperatorWeeklyActivity,
+  OperatorWeeklyReport,
   OperatorWorkspace,
 } from "@/lib/operator/types"
 
@@ -33,6 +34,7 @@ export function renameOperatorConversation(input: { userId: string; conversation
 export function setOperatorConversationPinned(input: { userId: string; conversationId: string; pinned: boolean }): Promise<boolean> {
   return convexMutation("operator:setConversationPinned", input, member(input.userId))
 }
+export function setOperatorConversationArchived(input: { userId: string; conversationId: string; archived: boolean }): Promise<boolean> { return convexMutation("operator:setConversationArchived", input, member(input.userId)) }
 
 export function deleteOperatorConversation(input: { userId: string; conversationId: string }): Promise<boolean> {
   return convexMutation("operator:deleteConversation", input, member(input.userId))
@@ -40,6 +42,23 @@ export function deleteOperatorConversation(input: { userId: string; conversation
 
 export function getOperatorWorkspace(userId: string, conversationId: string): Promise<OperatorWorkspace | null> {
   return convexQuery("operator:getWorkspace", { userId, conversationId }, member(userId))
+}
+
+export function getOperatorTasks(userId: string): Promise<{ tasks: OperatorTask[]; goals: OperatorGoal[]; timezone: string; locale: string } | null> {
+  return convexQuery("operator:getTasks", { userId }, member(userId))
+}
+
+export function ensureOperatorWeeklyReport(input: { userId: string; windowStart: string; windowEnd: string; previousWindowStart: string }): Promise<OperatorWeeklyReport> {
+  return convexMutation("operator:ensureWeeklyReport", input, member(input.userId))
+}
+export function listOperatorWeeklyReports(userId: string): Promise<OperatorWeeklyReport[]> { return convexQuery("operator:listWeeklyReports", { userId }, member(userId)) }
+
+export function reviewOperatorWeeklyObservation(input: { userId: string; reportId: string; observationId: string; status: "accepted" | "rejected" | "corrected"; correction?: string }): Promise<boolean> {
+  return convexMutation("operator:reviewWeeklyObservation", input, member(input.userId))
+}
+
+export function submitOperatorMessageFeedback(input: { userId: string; messageId: string; rating: "useful" | "not_useful" | "reported"; reason?: string }): Promise<boolean> {
+  return convexMutation("operator:submitMessageFeedback", input, member(input.userId))
 }
 
 export function getOperatorGoal(userId: string, goalId: string): Promise<{ goal: OperatorGoal; tasks: OperatorTask[] } | null> {
@@ -113,6 +132,10 @@ export function failOperatorTurn(input: {
   return convexMutation("operator:failTurn", input, member(input.userId))
 }
 
+export function cancelOperatorTurn(input: { userId: string; conversationId: string }): Promise<boolean> {
+  return convexMutation("operator:cancelTurn", input, member(input.userId))
+}
+
 export function recordOperatorProviderOutcome(success: boolean): Promise<{ open: boolean; consecutiveFailures: number }> {
   return convexMutation("operator:recordProviderOutcome", { provider: "gemini", success }, { role: "background", subject: "background:ai-provider", scope: "operator:provider" })
 }
@@ -120,6 +143,7 @@ export function recordOperatorProviderOutcome(success: boolean): Promise<{ open:
 export function acceptOperatorTasks(input: { userId: string; conversationId: string; messageId: string }): Promise<{ created: number; alreadyAccepted: boolean }> {
   return convexMutation("operator:acceptTasks", input, member(input.userId))
 }
+export function updateOperatorTaskProposal(input: { userId: string; conversationId: string; messageId: string; index: number; title: string; note: string; estimatedMinutes: number; completionCondition: string; scheduledFor: string; goalTitle: string }): Promise<boolean> { return convexMutation("operator:updateTaskProposal", input, member(input.userId)) }
 
 export function setOperatorTaskStatus(input: {
   userId: string

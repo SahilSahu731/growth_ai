@@ -13,11 +13,15 @@ export type AccountOverview = {
     planTier: UserPlanTier
     timezone?: string
   }
-  conversations: Array<{ id: string; title: string; pinned: boolean }>
+  conversations: Array<{ id: string; title: string; pinned: boolean; archived: boolean }>
   preferences: {
     coachTone: CoachTone
     timezone: string
     emailNotifications: boolean
+    notificationQuietStart: string
+    notificationQuietEnd: string
+    notificationFrequency: "off" | "weekly"
+    notificationSnoozedUntil: string | null
     messageRetentionDays: number
     termsAcceptedVersion: string | null
     privacyAcceptedVersion: string | null
@@ -38,6 +42,10 @@ export function updateAccountPreferences(input: {
   coachTone: CoachTone
   timezone: string
   emailNotifications: boolean
+  notificationQuietStart?: string
+  notificationQuietEnd?: string
+  notificationFrequency?: "off" | "weekly"
+  notificationSnoozedUntil?: string
 }) {
   return convexMutation("account:updatePreferences", input, member(input.userId, "account:write"))
 }
@@ -120,6 +128,7 @@ export type UserBillingOverview = {
 export function getUserBilling(userId: string): Promise<UserBillingOverview | null> {
   return convexQuery("billing:getUserBilling", { userId }, member(userId, "billing:read"))
 }
+export function recordBillingUpgradeViewed(userId: string): Promise<boolean> { return convexMutation("billing:recordUpgradeViewed", { userId }, member(userId, "billing:read")) }
 
 export function beginBillingCheckout(userId: string, planTier: "pro" | "founder"): Promise<{ ok: true; token: string } | { ok: false; reason: "existing_subscription" | "checkout_in_progress" }> {
   return convexMutation("billing:beginCheckout", { userId, planTier }, member(userId, "billing:write"))
