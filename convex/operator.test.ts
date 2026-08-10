@@ -205,6 +205,40 @@ describe("operator invariants", () => {
     await expect(server.mutation(api.operator.deleteGoal, { userId: "user-1", goalId: created.goal.id })).resolves.toBe(true)
   })
 
+  it("creates an actionable goal and allows adding its next action", async () => {
+    const t = convexTest(schema, modules)
+    await seedAccount(t)
+    const server = t.withIdentity(identity)
+    const created = await server.mutation(api.operator.createGoal, {
+      userId: "user-1",
+      title: "Publish my portfolio",
+      description: "Three case studies are live and ready to share.",
+      targetDate: "2026-09-01",
+      firstTask: {
+        title: "Choose the case studies",
+        completionCondition: "Three project links are in one document",
+        scheduledFor: "2026-08-10",
+        estimatedMinutes: 25,
+      },
+    })
+    expect(created.goal.targetDate).toBe("2026-09-01")
+    expect(created.task).toMatchObject({ goalId: created.goal.id, status: "todo", position: 0 })
+
+    const next = await server.mutation(api.operator.createTask, {
+      userId: "user-1",
+      goalId: created.goal.id,
+      title: "Outline the first case study",
+      note: "Use the strongest project first.",
+      completionCondition: "Problem, process, and result headings are drafted",
+      scheduledFor: "2026-08-10",
+      estimatedMinutes: 45,
+    })
+    expect(next).toMatchObject({ goalId: created.goal.id, status: "todo", position: 1, estimatedMinutes: 45 })
+    const events = await t.run((ctx) => ctx.db.query("operatorTaskEvents").collect())
+    expect(events).toHaveLength(2)
+    expect(events.every((event) => event.event === "accepted")).toBe(true)
+  })
+
   it("sets and clears completedAt across todo, done, and dismissed task transitions", async () => {
     const t = convexTest(schema, modules)
     await seedAccount(t)

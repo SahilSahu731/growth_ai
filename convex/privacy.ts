@@ -31,7 +31,7 @@ export const enforceMessageRetention = internalMutation({
   },
 })
 
-const deletionStages: UserOwnedTable[] = ["operatorMessages", "messageFeedback", "operatorTasks", "operatorTaskEvents", "weeklyReports", "growthMapItems", "productEvents", "operatorGoals", "operatorConversations", "entitlementGrants", "subscriptions", "billingCheckoutLocks", "emailDeliveries", "aiDailyUsage", "privacyEvents", "dataSubjectRequests", "accountExportChunks", "accountExportJobs"]
+const deletionStages: UserOwnedTable[] = ["operatorMessages", "messageFeedback", "operatorTasks", "operatorTaskEvents", "weeklyReports", "growthMapItems", "growthMapNodes", "growthMaps", "productEvents", "operatorGoals", "operatorConversations", "entitlementGrants", "subscriptions", "billingCheckoutLocks", "emailDeliveries", "aiDailyUsage", "privacyEvents", "dataSubjectRequests", "accountExportChunks", "accountExportJobs"]
 const processDeletionRef = makeFunctionReference<"mutation", Record<string, never>, unknown>("privacy:processDeletion") as unknown as FunctionReference<"mutation", "internal", { userId: string; jobId: string }, unknown>
 
 export const processDeletion = internalMutation({

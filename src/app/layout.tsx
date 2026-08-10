@@ -42,5 +42,5 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className="font-sans"><body className="antialiased"><GlobalAnnouncementBanner />{children}</body></html>
+  return <html lang="en" className="font-sans" suppressHydrationWarning><body className="antialiased"><GlobalAnnouncementBanner />{children}</body></html>
 }

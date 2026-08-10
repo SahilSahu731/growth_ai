@@ -22,6 +22,7 @@ export type OperatorGoal = {
   userId: string
   title: string
   description: string
+  targetDate?: string
   status: "active" | "completed" | "archived"
   createdAt: string
   updatedAt: string

@@ -404,12 +404,33 @@ export const deleteConversation = mutation({
 })
 
 export const createGoal = mutation({
-  args: { userId: v.string(), title: v.string(), description: v.string() },
+  args: {
+    userId: v.string(),
+    title: v.string(),
+    description: v.string(),
+    targetDate: v.optional(v.string()),
+    firstTask: v.optional(v.object({
+      title: v.string(),
+      completionCondition: v.string(),
+      scheduledFor: v.string(),
+      estimatedMinutes: v.number(),
+    })),
+  },
   handler: async (ctx, args) => {
     await requireMember(ctx, args.userId, "operator:member")
     const title = normalizeGoalTitle(args.title)
     const description = args.description.trim().slice(0, 500)
     if (title.length < 3) throw new Error("INVALID_GOAL_TITLE: Goal title must be at least 3 characters")
+    if (args.targetDate && !isRealDateOnly(args.targetDate)) throw new Error("INVALID_TARGET_DATE: Choose a valid target date")
+    const firstTask = args.firstTask ? {
+      title: args.firstTask.title.trim().slice(0, 120),
+      completionCondition: args.firstTask.completionCondition.trim().slice(0, 220),
+      scheduledFor: args.firstTask.scheduledFor,
+      estimatedMinutes: Math.min(Math.max(Math.round(args.firstTask.estimatedMinutes), 5), 240),
+    } : null
+    if (firstTask && firstTask.title.length < 3) throw new Error("INVALID_TASK_TITLE: First action must be at least 3 characters")
+    if (firstTask && firstTask.completionCondition.length < 3) throw new Error("INVALID_COMPLETION_CONDITION: Say how you will know the first action is done")
+    if (firstTask && !isRealDateOnly(firstTask.scheduledFor)) throw new Error("INVALID_DATE: Schedule the first action")
     const [user, activeGoals, allGoals, entitlements] = await Promise.all([
       userForId(ctx, args.userId),
       activeGoalsForUser(ctx, args.userId),
@@ -422,16 +443,89 @@ export const createGoal = mutation({
     const limit = entitlements.limits.activeGoals
     if (activeGoals.length >= limit) throw new Error(limit === 3 ? "GOAL_LIMIT_REACHED: Free accounts can have up to 3 active goals. Upgrade to Pro to add more." : "GOAL_LIMIT_REACHED: Active goal limit reached.")
     const timestamp = now()
+    let firstTaskPosition = 0
+    if (firstTask) {
+      const tasksOnDate = await ctx.db.query("operatorTasks").withIndex("by_user_date", (q: any) => q.eq("userId", args.userId).eq("scheduledFor", firstTask.scheduledFor)).take(4)
+      firstTaskPosition = tasksOnDate.filter((task: any) => task.status !== "dismissed").length
+      if (firstTaskPosition >= 3) throw new Error("DAILY_TASK_LIMIT_REACHED: That day already has 3 tasks. Choose another day.")
+    }
+    const goalLegacyId = id()
     const documentId = await ctx.db.insert("operatorGoals", {
-      legacyId: id(), userId: args.userId, title, description, status: "active", createdAt: timestamp, updatedAt: timestamp,
+      legacyId: goalLegacyId, userId: args.userId, title, description, targetDate: args.targetDate, status: "active", createdAt: timestamp, updatedAt: timestamp,
     })
-    return { goal: clean(await ctx.db.get(documentId)), limit, duplicate: false }
+    let task = null
+    if (firstTask) {
+      const taskLegacyId = id()
+      const taskDocumentId = await ctx.db.insert("operatorTasks", {
+        legacyId: taskLegacyId,
+        userId: args.userId,
+        goalId: goalLegacyId,
+        title: firstTask.title,
+        note: "",
+        status: "todo",
+        estimatedMinutes: firstTask.estimatedMinutes,
+        completionCondition: firstTask.completionCondition,
+        scheduledFor: firstTask.scheduledFor,
+        position: firstTaskPosition,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      await ctx.db.insert("operatorTaskEvents", { userId: args.userId, taskId: taskLegacyId, event: "accepted", toStatus: "todo", toDate: firstTask.scheduledFor, createdAt: timestamp })
+      task = clean(await ctx.db.get(taskDocumentId))
+    }
+    return { goal: clean(await ctx.db.get(documentId)), task, limit, duplicate: false }
+  },
+})
+
+export const createTask = mutation({
+  args: {
+    userId: v.string(),
+    goalId: v.string(),
+    title: v.string(),
+    note: v.string(),
+    estimatedMinutes: v.number(),
+    completionCondition: v.string(),
+    scheduledFor: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, args.userId, "operator:member")
+    const goal = await goalForUser(ctx, args.goalId, args.userId)
+    if (!goal) throw new Error("GOAL_NOT_FOUND: Goal not found")
+    if (goal.status !== "active") throw new Error("GOAL_NOT_ACTIVE: Add actions only to active goals")
+    const title = args.title.replace(/\s+/g, " ").trim().slice(0, 120)
+    const note = args.note.trim().slice(0, 300)
+    const completionCondition = args.completionCondition.replace(/\s+/g, " ").trim().slice(0, 220)
+    const estimatedMinutes = Math.min(Math.max(Math.round(args.estimatedMinutes), 5), 240)
+    if (title.length < 3) throw new Error("INVALID_TASK_TITLE: Action must be at least 3 characters")
+    if (completionCondition.length < 3) throw new Error("INVALID_COMPLETION_CONDITION: Say how you will know this action is done")
+    if (!isRealDateOnly(args.scheduledFor)) throw new Error("INVALID_DATE: Choose a valid scheduled date")
+    const tasksOnDate = await ctx.db.query("operatorTasks").withIndex("by_user_date", (q: any) => q.eq("userId", args.userId).eq("scheduledFor", args.scheduledFor)).take(4)
+    const position = tasksOnDate.filter((task: any) => task.status !== "dismissed").length
+    if (position >= 3) throw new Error("DAILY_TASK_LIMIT_REACHED: That day already has 3 tasks. Choose another day.")
+    const timestamp = now()
+    const taskLegacyId = id()
+    const documentId = await ctx.db.insert("operatorTasks", {
+      legacyId: taskLegacyId,
+      userId: args.userId,
+      goalId: args.goalId,
+      title,
+      note,
+      status: "todo",
+      estimatedMinutes,
+      completionCondition,
+      scheduledFor: args.scheduledFor,
+      position,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await ctx.db.insert("operatorTaskEvents", { userId: args.userId, taskId: taskLegacyId, event: "accepted", toStatus: "todo", toDate: args.scheduledFor, createdAt: timestamp })
+    return clean(await ctx.db.get(documentId))
   },
 })
 
 export const updateGoal = mutation({
   args: {
-    userId: v.string(), goalId: v.string(), title: v.string(), description: v.string(),
+    userId: v.string(), goalId: v.string(), title: v.string(), description: v.string(), targetDate: v.optional(v.string()),
     status: v.union(v.literal("active"), v.literal("completed"), v.literal("archived")),
   },
   handler: async (ctx, args) => {
@@ -440,6 +534,7 @@ export const updateGoal = mutation({
     if (!goal) throw new Error("GOAL_NOT_FOUND: Goal not found")
     const title = normalizeGoalTitle(args.title)
     if (title.length < 3) throw new Error("INVALID_GOAL_TITLE: Goal title must be at least 3 characters")
+    if (args.targetDate && !isRealDateOnly(args.targetDate)) throw new Error("INVALID_TARGET_DATE: Choose a valid target date")
     const allGoals = await ctx.db.query("operatorGoals").withIndex("by_user_updated", (q: any) => q.eq("userId", args.userId)).take(100)
     const duplicate = allGoals.find((item: any) => item.legacyId !== args.goalId && normalizedTitleKey(item.title) === normalizedTitleKey(title))
     if (duplicate) throw new Error("DUPLICATE_GOAL: Another goal already uses that title")
@@ -448,6 +543,7 @@ export const updateGoal = mutation({
     await ctx.db.patch(goal._id, {
       title,
       description: args.description.trim().slice(0, 500),
+      targetDate: args.targetDate,
       status: args.status,
       updatedAt: timestamp,
       completedAt: args.status === "completed" ? (goal.completedAt ?? timestamp) : undefined,

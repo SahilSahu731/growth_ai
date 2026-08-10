@@ -18,24 +18,40 @@ Convex validates RS256 tokens using the role-specific JWKS endpoints under `/api
 
 ## Local setup
 
-1. Generate independent PKCS#8 keys:
+1. Select a local Convex deployment. This keeps the JWKS endpoint private and
+   lets Convex reach `http://localhost:3000` without an internet tunnel:
+
+   ```bash
+   npx convex deployment select local
+   ```
+
+2. Generate independent PKCS#8 keys:
 
    ```bash
    npm run convex:keys
    ```
 
-   Copy the output to `.env.local`; do not commit or paste it into logs. Set `CONVEX_AUTH_BASE_URL` to an HTTPS URL reachable by Convex. Because the Convex cloud cannot fetch JWKS from localhost, use an access-controlled development tunnel or a deployed preview URL.
+   Copy the five role keys to `.env.local`; do not commit or paste them into
+   logs. Set `CONVEX_AUTH_BASE_URL=http://localhost:3000` there. Do not copy
+   `DELETED_IDENTITY_HMAC_SECRET` into the web runtime.
 
-2. Configure the issuer base in the selected Convex deployment:
+3. Configure the local Convex deployment:
 
    ```bash
-   npx convex env set CONVEX_AUTH_BASE_URL https://YOUR-DEV-OR-PREVIEW-ORIGIN
+   npx convex env set CONVEX_AUTH_BASE_URL http://localhost:3000
    npx convex env set DELETED_IDENTITY_HMAC_SECRET YOUR-GENERATED-HMAC-SECRET
    ```
 
-3. Run `npm run convex:dev` from a deployment-only terminal. Its deploy credential remains in the CLI environment, not the terminal or service running `npm run dev`.
+4. Run `npm run dev`. The command keeps Convex and Next.js in the same process
+   group, so the web server cannot start by itself while port 3210 is closed.
+   Use `npm run dev:web` only when a Convex backend is already running. Keep
+   `CONVEX_DEPLOY_KEY` out of `.env.local`; if a cloud deployment command needs
+   one, load it from a separate ignored deployment-only env file.
 
-4. Start Next.js with `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_AUTH_BASE_URL`, and the five scoped private keys. Do not set `CONVEX_DEPLOY_KEY` in this process.
+To develop against Convex Cloud instead, `CONVEX_AUTH_BASE_URL` must be an HTTPS
+origin reachable by Convex. Use a deliberately configured development tunnel or
+a deployed preview URL, configure the same origin in the Convex deployment, and
+review the exposure before starting the tunnel.
 
 ## Production deployment order
 

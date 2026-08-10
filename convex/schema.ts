@@ -70,6 +70,7 @@ export default defineSchema({
     userId: v.string(),
     title: v.string(),
     description: v.string(),
+    targetDate: v.optional(v.string()),
     status: v.union(v.literal("active"), v.literal("completed"), v.literal("archived")),
     createdAt: v.string(),
     updatedAt: v.string(),
@@ -204,6 +205,40 @@ export default defineSchema({
   })
     .index("by_legacy_id", ["legacyId"])
     .index("by_user_updated", ["userId", "updatedAt"]),
+
+  growthMaps: defineTable({
+    legacyId: v.string(),
+    userId: v.string(),
+    title: v.string(),
+    topic: v.string(),
+    outcome: v.string(),
+    source: v.union(v.literal("manual"), v.literal("ai")),
+    status: v.union(v.literal("active"), v.literal("archived")),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_legacy_id", ["legacyId"])
+    .index("by_user_updated", ["userId", "updatedAt"]),
+
+  growthMapNodes: defineTable({
+    legacyId: v.string(),
+    userId: v.string(),
+    mapId: v.string(),
+    title: v.string(),
+    description: v.string(),
+    stage: v.number(),
+    position: v.number(),
+    type: v.union(v.literal("foundation"), v.literal("core"), v.literal("practice"), v.literal("project")),
+    status: v.union(v.literal("locked"), v.literal("available"), v.literal("in_progress"), v.literal("completed")),
+    estimatedHours: v.number(),
+    parentIds: v.array(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    completedAt: v.optional(v.string()),
+  })
+    .index("by_legacy_id", ["legacyId"])
+    .index("by_user_updated", ["userId", "updatedAt"])
+    .index("by_map_position", ["mapId", "stage", "position"]),
 
   productEvents: defineTable({
     userId: v.string(),

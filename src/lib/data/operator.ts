@@ -134,8 +134,26 @@ export function setOperatorTaskStatus(input: {
   return convexMutation("operator:setTaskStatus", input, member(input.userId))
 }
 
-export function createOperatorGoal(input: { userId: string; title: string; description: string }): Promise<{ goal: OperatorGoal; limit: number; duplicate: boolean }> {
+export function createOperatorGoal(input: {
+  userId: string
+  title: string
+  description: string
+  targetDate?: string
+  firstTask?: { title: string; completionCondition: string; scheduledFor: string; estimatedMinutes: number }
+}): Promise<{ goal: OperatorGoal; task?: OperatorTask | null; limit: number; duplicate: boolean }> {
   return convexMutation("operator:createGoal", input, member(input.userId))
+}
+
+export function createOperatorTask(input: {
+  userId: string
+  goalId: string
+  title: string
+  note: string
+  estimatedMinutes: number
+  completionCondition: string
+  scheduledFor: string
+}): Promise<OperatorTask> {
+  return convexMutation("operator:createTask", input, member(input.userId))
 }
 
 export function updateOperatorGoal(input: {
@@ -143,6 +161,7 @@ export function updateOperatorGoal(input: {
   goalId: string
   title: string
   description: string
+  targetDate?: string
   status: OperatorGoal["status"]
 }): Promise<OperatorGoal> {
   return convexMutation("operator:updateGoal", input, member(input.userId))

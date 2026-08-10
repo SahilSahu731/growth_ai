@@ -45,7 +45,7 @@ export function GlobalAnnouncementBanner() {
   }, [announcement?.placement, announcement?.dismissible])
 
   if (pathname.startsWith("/admin")) return null
-  if (!announcement) return <div aria-hidden className="min-h-10 bg-background" data-announcement-slot />
+  if (!announcement) return null
   const dismissalKey = `growthai-announcement:${announcement.id}:${announcement.updatedAt}`
-  return <div className={announcement.placement === "top_bar" ? "min-h-10" : "min-h-10 bg-background"} data-global-announcement><AnnouncementPresentation announcement={announcement} onDismiss={() => { window.localStorage.setItem(dismissalKey, "dismissed"); setAnnouncement(null) }} /></div>
+  return <div data-global-announcement><AnnouncementPresentation announcement={announcement} onDismiss={() => { window.localStorage.setItem(dismissalKey, "dismissed"); setAnnouncement(null) }} /></div>
 }

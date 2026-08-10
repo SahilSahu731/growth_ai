@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type UserOwnedTable = "operatorMessages" | "operatorTasks" | "operatorTaskEvents" | "messageFeedback" | "weeklyReports" | "growthMapItems" | "productEvents" | "operatorGoals" | "operatorConversations" | "subscriptions" | "entitlementGrants" | "billingCheckoutLocks" | "emailDeliveries" | "aiDailyUsage" | "privacyEvents" | "dataSubjectRequests" | "accountDeletionJobs" | "accountExportJobs" | "accountExportChunks"
+export type UserOwnedTable = "operatorMessages" | "operatorTasks" | "operatorTaskEvents" | "messageFeedback" | "weeklyReports" | "growthMapItems" | "growthMaps" | "growthMapNodes" | "productEvents" | "operatorGoals" | "operatorConversations" | "subscriptions" | "entitlementGrants" | "billingCheckoutLocks" | "emailDeliveries" | "aiDailyUsage" | "privacyEvents" | "dataSubjectRequests" | "accountDeletionJobs" | "accountExportJobs" | "accountExportChunks"
 
 export function collectOwnedRows(ctx: any, table: UserOwnedTable, userId: string): Promise<any[]> {
   // Compatibility helper for legacy, synchronous privacy paths. It is
@@ -44,6 +44,8 @@ function ownedQuery(ctx: any, table: UserOwnedTable, userId: string): any {
     case "accountExportJobs":
       return ctx.db.query(table).withIndex("by_user_created", (q: any) => q.eq("userId", userId))
     case "growthMapItems":
+    case "growthMaps":
+    case "growthMapNodes":
       return ctx.db.query(table).withIndex("by_user_updated", (q: any) => q.eq("userId", userId))
   }
 }

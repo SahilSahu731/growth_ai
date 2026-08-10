@@ -13,6 +13,7 @@ import {
   cancelOperatorTurn,
   completeOperatorTurn,
   createOperatorGoal,
+  createOperatorTask,
   failOperatorTurn,
   getOperatorMessagePage,
   getOperatorWorkspace,
@@ -241,14 +242,57 @@ export async function updateOperatorTaskAction(_state: OperatorFormState, formDa
   }
 }
 
+export async function createOperatorTaskAction(_state: OperatorFormState, formData: FormData): Promise<OperatorFormState> {
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id
+  if (!userId) return { error: "Your session expired." }
+  const goalId = field(formData, "goalId")
+  const title = field(formData, "title")
+  const completionCondition = field(formData, "completionCondition")
+  const scheduledFor = field(formData, "scheduledFor")
+  const estimatedMinutes = Number.parseInt(field(formData, "estimatedMinutes"), 10)
+  if (!goalId) return { error: "Goal not found. Refresh and try again." }
+  if (title.length < 3 || completionCondition.length < 3) return { error: "Add a clear action and finish line." }
+  try {
+    await createOperatorTask({
+      userId,
+      goalId,
+      title,
+      note: field(formData, "note"),
+      completionCondition,
+      scheduledFor,
+      estimatedMinutes: Number.isFinite(estimatedMinutes) ? estimatedMinutes : 25,
+    })
+    revalidateOperatorViews()
+    return { success: "Action added.", updatedAt: Date.now() }
+  } catch (error) {
+    return { error: userSafeError(error, "Could not add this action.") }
+  }
+}
+
 export async function createOperatorGoalAction(_state: OperatorFormState, formData: FormData): Promise<OperatorFormState> {
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
   if (!userId) return { error: "Your session expired." }
   try {
-    const result = await createOperatorGoal({ userId, title: field(formData, "title"), description: field(formData, "description") })
+    const taskTitle = field(formData, "taskTitle")
+    const estimatedMinutes = Number.parseInt(field(formData, "estimatedMinutes"), 10)
+    const result = await createOperatorGoal({
+      userId,
+      title: field(formData, "title"),
+      description: field(formData, "description"),
+      targetDate: field(formData, "targetDate") || undefined,
+      ...(taskTitle ? {
+        firstTask: {
+          title: taskTitle,
+          completionCondition: field(formData, "completionCondition"),
+          scheduledFor: field(formData, "scheduledFor"),
+          estimatedMinutes: Number.isFinite(estimatedMinutes) ? estimatedMinutes : 25,
+        },
+      } : {}),
+    })
     revalidateOperatorViews()
-    return { success: result.duplicate ? "That goal already exists." : "Goal created.", updatedAt: Date.now() }
+    return { success: result.duplicate ? "That goal already exists." : result.task ? "Goal and first action created." : "Goal created.", updatedAt: Date.now() }
   } catch (error) {
     return { error: userSafeError(error, "Could not create this goal.") }
   }
@@ -263,7 +307,7 @@ export async function updateOperatorGoalAction(_state: OperatorFormState, formDa
   try {
     await updateOperatorGoal({
       userId, goalId: field(formData, "goalId"), title: field(formData, "title"),
-      description: field(formData, "description"), status,
+      description: field(formData, "description"), targetDate: field(formData, "targetDate") || undefined, status,
     })
     revalidateOperatorViews()
     return { success: "Goal updated.", updatedAt: Date.now() }

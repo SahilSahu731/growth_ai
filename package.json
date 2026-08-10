@@ -5,8 +5,9 @@
   "packageManager": "npm@10.8.2",
   "engines": { "node": ">=20.18 <25" },
   "scripts": {
-    "dev": "next dev",
-    "convex:dev": "convex dev",
+    "dev": "CONVEX_AGENT_MODE=anonymous convex dev --start 'next dev' --tail-logs disable",
+    "dev:web": "next dev",
+    "convex:dev": "CONVEX_AGENT_MODE=anonymous convex dev",
     "convex:keys": "tsx scripts/generate-convex-identity-keys.ts",
     "build": "next build --webpack",
     "start": "next start",

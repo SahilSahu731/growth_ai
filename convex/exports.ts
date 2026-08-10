@@ -11,7 +11,7 @@ const MAX_ROWS = 5_000
 const MAX_BYTES = 10 * 1024 * 1024
 const MAX_CHUNKS = 250
 const EXPORT_TTL_MS = 24 * 60 * 60 * 1000
-const stages: UserOwnedTable[] = ["operatorConversations", "operatorMessages", "operatorGoals", "operatorTasks", "operatorTaskEvents", "weeklyReports", "growthMapItems", "messageFeedback", "subscriptions", "entitlementGrants", "productEvents", "emailDeliveries", "privacyEvents", "dataSubjectRequests"]
+const stages: UserOwnedTable[] = ["operatorConversations", "operatorMessages", "operatorGoals", "operatorTasks", "operatorTaskEvents", "weeklyReports", "growthMapItems", "growthMaps", "growthMapNodes", "messageFeedback", "subscriptions", "entitlementGrants", "productEvents", "emailDeliveries", "privacyEvents", "dataSubjectRequests"]
 const processRef = makeFunctionReference<"mutation", Record<string, never>, unknown>("exports:process") as unknown as FunctionReference<"mutation", "internal", { jobId: string }, unknown>
 
 function safeRow(row: any) {
